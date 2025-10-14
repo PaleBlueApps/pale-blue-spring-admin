@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:fragment="layout(content)">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${title} ?: 'Admin'">Admin</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-screen bg-gray-50 text-gray-900 overflow-x-hidden">
+<!-- Fixed Header -->
+<header class="fixed top-0 left-0 right-0 z-30 bg-gray-800 text-white">
+    <div class="mx-auto max-w-screen-2xl px-4 py-3 flex items-center justify-between">
+        <a class="flex items-center gap-2" th:href="${basePath}">
+            <img th:if="${brandLogo}" th:src="${brandLogo}" alt="Logo" class="h-6 w-6"/>
+            <span class="font-semibold" th:text="${title} ?: 'Admin'">Admin</span>
+        </a>
+        <div class="text-sm text-gray-300">Spring Data Admin</div>
+    </div>
+</header>
+
+<!-- App Shell: fixed sidebar + scrollable content -->
+<div class="pt-[56px] h-full">
+    <div class="mx-auto max-w-screen-2xl px-4 h-full flex gap-6">
+        <!-- Fixed Sidebar (desktop) -->
+        <aside class="w-64 shrink-0 hidden md:block sticky top-[56px] self-start h-[calc(100vh-56px)] overflow-y-auto">
+            <div class="bg-white rounded-lg shadow border border-gray-200">
+                <div class="px-4 py-3 border-b border-gray-200 font-semibold">Entities</div>
+                <nav class="p-2 space-y-1">
+                    <a th:each="e : ${entities}" th:href="${basePath + '/' + e.entityName}"
+                       class="block px-3 py-2 rounded hover:bg-gray-100 text-gray-700"
+                       th:text="${e.displayName}">Entity</a>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- Main content: scrolls vertically; table area scrolls horizontally -->
+        <main class="flex-1 h-[calc(100vh-56px)] overflow-y-auto py-6">
+            <div th:if="${message}" class="mb-4 rounded border border-green-200 bg-green-50 text-green-800 px-4 py-3" th:text="${message}"></div>
+            <div th:if="${error}" class="mb-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-3" th:text="${error}"></div>
+            <div th:insert="${content}"></div>
+        </main>
+    </div>
+</div>
+</body>
+</html>

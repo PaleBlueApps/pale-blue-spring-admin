@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
+<body>
+    <h2 class="text-xl font-semibold mb-4">
+        <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
+        <span class="text-gray-400">/</span>
+        <span th:text="${descriptor.displayName}">Entity</span>
+    </h2>
+
+    <!-- Toolbar: page size selector and sort placeholder -->
+    <div class="mb-3 flex items-center justify-between">
+        <form th:action="@{${basePath + '/' + descriptor.entityName}}" method="get" class="flex items-center justify-between w-full gap-4">
+            <input type="hidden" name="page" value="0"/>
+            <input type="hidden" name="sort" th:value="${sort}" th:if="${sort}"/>
+            <input type="hidden" name="dir" th:value="${dir}" th:if="${dir}"/>
+            <div class="flex items-center gap-2">
+                <label for="size" class="text-sm text-gray-600">Rows per page</label>
+                <select id="size" name="size" class="border rounded px-2 py-1 text-sm" th:value="${size}" onchange="this.form.submit()">
+                    <option th:each="s : ${pageSizes}" th:value="${s}" th:text="${s}" th:selected="${s == size}">25</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2 ml-auto">
+                <input type="text" name="q" placeholder="Search" class="border rounded px-2 py-1 text-sm" th:value="${q}"/>
+                <button type="submit" class="px-2 py-1 text-sm border rounded bg-gray-50 hover:bg-gray-100">Search</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-white shadow border border-gray-200">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col"
+                        class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        th:each="attribute,iterStat : ${attributeTitles}">
+                        <a class="inline-flex items-center gap-1 hover:underline"
+                           th:href="${basePath + '/' + descriptor.entityName + '?page=0' + (size != null ? '&size=' + size : '') + '&sort=' + attribute + '&dir=' + ((sort == attribute and dir == 'asc') ? 'desc' : 'asc') + (q != null ? '&q=' + q : '')}"
+                           th:text="${attribute}"></a>
+                        <a th:href="${basePath + '/' + descriptor.entityName + '?page=0' + (size != null ? '&size=' + size : '') + (q != null ? '&q=' + q : '')}"  th:if="${sort == attribute}" class="text-gray-400" th:text="${dir == 'desc' ? '▼' : '▲'}">▲</a>
+                    </th>
+                </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                <tr class="hover:bg-gray-50" th:each="row : ${rows}">
+                    <td class="px-4 py-3 text-sm text-gray-700" th:each="data : ${row}" th:text="${data}">1</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-4 flex items-center gap-2" th:with="start=${data.totalElements > 0 ? data.page * data.size + 1 : 0}, end=${data.totalElements > 0 ? (data.page + 1) * data.size : 0}, endCap=${end > data.totalElements ? data.totalElements : end}">
+        <nav aria-label="Pagination" th:if="${data.totalPages} > 1">
+            <ul class="inline-flex items-center gap-1">
+            <li>
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${data.page == 0} ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'"
+                   th:href="${basePath + '/' + descriptor.entityName + '?page=' + (data.page - 1) + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}">Previous</a>
+            </li>
+            <!-- Condensed pagination: first 3, window of 3 around current, last 3, with ellipses -->
+            <li th:with="
+                    tp=${data.totalPages},
+                    cp=${data.page},
+                    startWindow=${(cp - 3 > 0) ? (cp - 3) : 0},
+                    endWindow=${(cp + 3 < tp - 1) ? (cp + 3) : (tp - 1)},
+                    firstBlockEnd=${(2 < tp - 1) ? 2 : (tp - 1)},
+                    lastBlockStart=${(tp - 3 > 0) ? (tp - 3) : 0}
+                "
+                th:remove="tag">
+            </li>
+
+            <!-- First block (pages 0..firstBlockEnd) -->
+            <li th:each="i : ${#numbers.sequence(0, ((2 < data.totalPages - 1) ? 2 : (data.totalPages - 1)))}">
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${i == data.page} ? 'bg-gray-800 text-white border-gray-800' : 'hover:bg-gray-50'"
+                   th:href="${basePath + '/' + descriptor.entityName + '?page=' + i + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}"
+                   th:text="${i + 1}">1</a>
+            </li>
+
+            <!-- Ellipsis between first block and window -->
+            <li th:if="${data.page - 3 > 3}">
+                <span class="px-2 text-gray-500">…</span>
+            </li>
+
+            <!-- Middle window (cp-3 .. cp+3) bounded to [0..tp-1] -->
+            <li th:each="i : ${#numbers.sequence(((data.page - 3 > 0) ? (data.page - 3) : 0), (((data.page + 3) < (data.totalPages - 1)) ? (data.page + 3) : (data.totalPages - 1)))}"
+                th:if="${i >= 3 and i <= data.totalPages - 4}">
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${i == data.page} ? 'bg-gray-800 text-white border-gray-800' : 'hover:bg-gray-50'"
+                   th:href="${basePath + '/' + descriptor.entityName + '?page=' + i + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}"
+                   th:text="${i + 1}">1</a>
+            </li>
+
+            <!-- Ellipsis between window and last block -->
+            <li th:if="${data.page + 3 < data.totalPages - 4}">
+                <span class="px-2 text-gray-500">…</span>
+            </li>
+
+            <!-- Last block (pages tp-3 .. tp-1) -->
+            <li th:each="i : ${#numbers.sequence(((data.totalPages - 3) > 0 ? (data.totalPages - 3) : 0), data.totalPages - 1)}">
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${i == data.page} ? 'bg-gray-800 text-white border-gray-800' : 'hover:bg-gray-50'"
+                   th:href="${basePath + '/' + descriptor.entityName + '?page=' + i + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}"
+                   th:text="${i + 1}">1</a>
+            </li>
+            <li>
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${data.page >= data.totalPages - 1} ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'"
+                   th:href="${basePath + '/' + descriptor.entityName + '?page=' + (data.page + 1) + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}">Next</a>
+            </li>
+        </ul>
+        </nav>
+        <div class="text-sm text-gray-600" th:text="${data.totalElements > 0 ? 'Showing ' + start + '–' + endCap + ' of ' + data.totalElements : 'No records'}">Showing 1–10 of 100</div>
+    </div>
+</body>
+</html>

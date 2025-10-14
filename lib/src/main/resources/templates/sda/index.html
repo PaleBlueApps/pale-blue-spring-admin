@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
+<body>
+    <h1 class="text-2xl font-semibold mb-2" th:text="${title} ?: 'Admin'">Admin</h1>
+    <p class="text-sm text-gray-500 mb-4">Discovered entities</p>
+    <div class="bg-white rounded-lg shadow border border-gray-200">
+        <ul class="divide-y divide-gray-200">
+            <li class="flex items-center justify-between px-4 py-3" th:each="e : ${entities}">
+                <a class="text-blue-600 hover:underline" th:href="${basePath + '/' + e.entityName}" th:text="${e.displayName}">Entity</a>
+                <span class="inline-flex items-center rounded bg-gray-100 px-2 py-1 text-xs text-gray-700" th:text="${e.displayName}">Type</span>
+            </li>
+        </ul>
+    </div>
+</body>
+</html>
