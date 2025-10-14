@@ -3,8 +3,9 @@ plugins {
     alias(libs.plugins.kotlinSpring) apply false
     alias(libs.plugins.springBoot) apply false
     alias(libs.plugins.springDependencyManagement) apply false
-    alias(libs.plugins.kotlinJpa) apply false
     alias(libs.plugins.ktlint) apply false
+    alias(libs.plugins.mavenPublish) apply false
+    alias(libs.plugins.kapt) apply false
 }
 
 subprojects {

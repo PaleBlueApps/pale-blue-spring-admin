@@ -64,7 +64,6 @@ class AdminEntityController(
         model.addAttribute("pageSizes", options)
         // UI context for sidebar and branding
         model.addAttribute("entities", registry.all())
-        model.addAttribute("brandLogo", props.ui.brandLogo)
 
         return "sda/entity-list"
     }

@@ -19,7 +19,6 @@ class AdminIndexController(
         model.addAttribute("title", props.ui.title)
         model.addAttribute("entities", registry.all())
         model.addAttribute("basePath", props.basePath)
-        model.addAttribute("brandLogo", props.ui.brandLogo)
         return "sda/index"
     }
 }
