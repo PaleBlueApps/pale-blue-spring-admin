@@ -13,7 +13,6 @@ class AdminIndexController(
     private val registry: AdminEntityRegistry,
     private val props: AdminProperties,
 ) {
-
     @GetMapping("")
     fun index(model: Model): String {
         model.addAttribute("title", props.ui.title)

@@ -14,6 +14,12 @@ data class AdminProperties(
         require(basePath.startsWith("/")) { "basePath must start with /" }
     }
 
-    data class Ui(val title: String = "Paleblue Spring Admin")
-    data class Pagination(val defaultSize: Int = 25, val maxSize: Int = 200)
+    data class Ui(
+        val title: String = "Paleblue Spring Admin",
+    )
+
+    data class Pagination(
+        val defaultSize: Int = 25,
+        val maxSize: Int = 200,
+    )
 }

@@ -1,0 +1,60 @@
+<!--/*@thymesVar id="pagination" type="com.paleblueapps.springadmin.core.PaginationInfo"*/-->
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+    <!-- Pagination component fragment -->
+    <div th:fragment="pagination(pagination, baseUrl, size, sort, dir, q)" class="mt-4 flex items-center gap-2">
+        <nav aria-label="Pagination" th:if="${pagination.totalPages} > 1">
+            <ul class="inline-flex items-center gap-1">
+            <li>
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${pagination.currentPage == 0} ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'"
+                   th:href="${baseUrl + '?page=' + (pagination.currentPage - 1) + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}">Previous</a>
+            </li>
+
+            <!-- First block (pages 0, 1, 2) -->
+            <li th:each="i : ${pagination.firstBlockPages}">
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${i == pagination.currentPage} ? 'bg-gray-800 text-white border-gray-800' : 'hover:bg-gray-50'"
+                   th:href="${baseUrl + '?page=' + i + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}"
+                   th:text="${i + 1}">1</a>
+            </li>
+
+            <!-- Ellipsis between the first block and middle window -->
+            <li th:if="${pagination.showEllipsisBeforeMiddle}">
+                <span class="px-2 text-gray-500">…</span>
+            </li>
+
+            <!-- Middle window (current page ± 3) -->
+            <li th:each="i : ${pagination.middleWindowPages}">
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${i == pagination.currentPage} ? 'bg-gray-800 text-white border-gray-800' : 'hover:bg-gray-50'"
+                   th:href="${baseUrl + '?page=' + i + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}"
+                   th:text="${i + 1}">1</a>
+            </li>
+
+            <!-- Ellipsis between the middle window and the last block -->
+            <li th:if="${pagination.showEllipsisAfterMiddle}">
+                <span class="px-2 text-gray-500">…</span>
+            </li>
+
+            <!-- Last block (last 3 pages) -->
+            <li th:each="i : ${pagination.lastBlockPages}">
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${i == pagination.currentPage} ? 'bg-gray-800 text-white border-gray-800' : 'hover:bg-gray-50'"
+                   th:href="${baseUrl + '?page=' + i + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}"
+                   th:text="${i + 1}">1</a>
+            </li>
+
+            <li>
+                <a class="px-2 py-1 rounded border text-sm"
+                   th:classappend="${pagination.currentPage >= pagination.totalPages - 1} ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-50'"
+                   th:href="${baseUrl + '?page=' + (pagination.currentPage + 1) + (size != null ? '&size=' + size : '') + (sort != null ? '&sort=' + sort : '') + (dir != null ? '&dir=' + dir : '') + (q != null ? '&q=' + q : '')}">Next</a>
+            </li>
+        </ul>
+        </nav>
+        <div class="text-sm text-gray-600" th:text="${pagination.totalElements > 0 ? 'Showing ' + pagination.startRecord + '–' + pagination.endRecord + ' of ' + pagination.totalElements : 'No records'}">Showing 1–10 of 100</div>
+    </div>
+</body>
+</html>
+

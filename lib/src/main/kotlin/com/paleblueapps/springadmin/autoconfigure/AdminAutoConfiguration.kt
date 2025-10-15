@@ -25,10 +25,8 @@ import org.springframework.context.annotation.ComponentScan
 )
 @ComponentScan(basePackages = ["com.paleblueapps.springadmin"])
 class AdminAutoConfiguration {
-
     @Bean
-    fun adminEntityRegistry(entityManager: EntityManager): AdminEntityRegistry =
-        AdminEntityRegistry(entityManager)
+    fun adminEntityRegistry(entityManager: EntityManager): AdminEntityRegistry = AdminEntityRegistry(entityManager)
 
     @Bean
     fun adminCrudService(
@@ -37,8 +35,10 @@ class AdminAutoConfiguration {
     ): AdminCrudService = AdminCrudService(entityManager, registry)
 
     @Bean
-    fun adminIndexController(registry: AdminEntityRegistry, props: AdminProperties) =
-        AdminIndexController(registry, props)
+    fun adminIndexController(
+        registry: AdminEntityRegistry,
+        props: AdminProperties,
+    ) = AdminIndexController(registry, props)
 
     @Bean
     fun adminEntityController(

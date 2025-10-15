@@ -3,6 +3,7 @@ package com.paleblueapps.springadmin.web
 import com.paleblueapps.springadmin.autoconfigure.AdminProperties
 import com.paleblueapps.springadmin.core.AdminCrudService
 import com.paleblueapps.springadmin.core.AdminEntityRegistry
+import com.paleblueapps.springadmin.core.PaginationInfo
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
@@ -19,7 +20,6 @@ class AdminEntityController(
     private val registry: AdminEntityRegistry,
     private val props: AdminProperties,
 ) {
-
     @GetMapping("{entity}")
     fun list(
         @PathVariable entity: String,
@@ -32,28 +32,34 @@ class AdminEntityController(
     ): String {
         val desc = registry.get(entity) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
         val attributeTitles = desc.attributes.map { it.name }
-        val pageSize = if (size <= 0) {
-            props.pagination.defaultSize
-        } else {
-            size.coerceAtMost(props.pagination.maxSize)
-        }
+        val pageSize =
+            if (size <= 0) {
+                props.pagination.defaultSize
+            } else {
+                size.coerceAtMost(props.pagination.maxSize)
+            }
         val data = crud.list(entity, page, pageSize, sort, dir, q)
-        val rows = data.content.map { entity ->
-            attributeTitles.map { attribute ->
-                try {
-                    val field = entity.javaClass.getDeclaredField(attribute)
-                    field.isAccessible = true
-                    field.get(entity)
-                } catch (ex: Exception) {
-                    null
+        val rows =
+            data.content.map { entity ->
+                attributeTitles.map { attribute ->
+                    try {
+                        val field = entity.javaClass.getDeclaredField(attribute)
+                        field.isAccessible = true
+                        field.get(entity)
+                    } catch (ex: Exception) {
+                        null
+                    }
                 }
             }
-        }
+        // Create pagination info with pre-calculated values for the view
+        val paginationInfo = PaginationInfo.from(data)
+
         model.addAttribute("title", props.ui.title)
         model.addAttribute("descriptor", desc)
         model.addAttribute("attributeTitles", attributeTitles)
         model.addAttribute("data", data)
         model.addAttribute("rows", rows)
+        model.addAttribute("pagination", paginationInfo)
         model.addAttribute("basePath", props.basePath)
         model.addAttribute("sort", sort)
         model.addAttribute("dir", dir)
