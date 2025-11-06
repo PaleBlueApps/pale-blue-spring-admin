@@ -41,5 +41,28 @@
         </main>
     </div>
 </div>
+<script>
+// Make any table row with data-href clickable and keyboard accessible
+(function(){
+  document.addEventListener('click', function(e){
+    const tr = e.target.closest && e.target.closest('tr[data-href]');
+    if (tr) {
+      const href = tr.getAttribute('data-href');
+      if (href) { window.location.href = href; }
+    }
+  }, false);
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' ') {
+      const el = document.activeElement;
+      if (el && el.matches && el.matches('tr[data-href]')) {
+        e.preventDefault();
+        const href = el.getAttribute('data-href');
+        if (href) { window.location.href = href; }
+      }
+    }
+  }, false);
+})();
+</script>
 </body>
 </html>

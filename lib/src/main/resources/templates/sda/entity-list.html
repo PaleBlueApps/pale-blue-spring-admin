@@ -42,10 +42,12 @@
                 </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                <tr class="hover:bg-gray-50" th:each="row, rStat : ${rows}">
+                <tr class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    th:each="row, rStat : ${rows}"
+                    th:attr="data-href=${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index]}"
+                    tabindex="0" role="link">
                     <td class="px-4 py-3 text-sm text-gray-700" th:each="data, dStat : ${row}">
-                        <span th:if="${dStat.index != 0}" th:text="${data}">cell</span>
-                        <a th:if="${dStat.index == 0}" class="text-blue-700 hover:underline" th:href="${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index]}" th:text="${data}">detail</a>
+                        <span th:text="${data}">cell</span>
                     </td>
                 </tr>
                 </tbody>
