@@ -85,12 +85,19 @@ class AdminEntityController(
         val desc = registry.get(entity) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
         val found = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
 
-        val attributes = desc.attributes.map { it.name }
-        val values = attributes.map { attr ->
+        val detailAttrs = desc.detailAttributes
+        val attributes = detailAttrs.map { it.name }
+        val values = detailAttrs.map { attr ->
             try {
-                val field = found.javaClass.getDeclaredField(attr)
+                val field = found.javaClass.getDeclaredField(attr.name)
                 field.isAccessible = true
-                field.get(found)
+                val value = field.get(found)
+                if (value != null && (attr.persistentAttributeType.name == "MANY_TO_ONE" || attr.persistentAttributeType.name == "ONE_TO_ONE")) {
+                    // For associations, try to show the target's identifier if available
+                    crud.getId(value) ?: value.toString()
+                } else {
+                    value
+                }
             } catch (ex: Exception) {
                 null
             }

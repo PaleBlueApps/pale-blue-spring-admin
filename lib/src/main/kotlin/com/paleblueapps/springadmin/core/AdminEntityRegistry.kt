@@ -28,10 +28,22 @@ class AdminEntityRegistry(
                 val idName = idAttr.name
                 val idType = idAttr.javaType
 
-                val filteredAttributes = et.attributes.filter { attr ->
+                // Attributes for list views: BASIC and EMBEDDED only
+                val listAttributes = et.attributes.filter { attr ->
                     when (attr.persistentAttributeType) {
                         Attribute.PersistentAttributeType.BASIC,
                         Attribute.PersistentAttributeType.EMBEDDED -> true
+                        else -> false
+                    }
+                }
+
+                // Attributes for detail views: include singular associations (MANY_TO_ONE, ONE_TO_ONE)
+                val detailAttributes = et.attributes.filter { attr ->
+                    when (attr.persistentAttributeType) {
+                        Attribute.PersistentAttributeType.BASIC,
+                        Attribute.PersistentAttributeType.EMBEDDED,
+                        Attribute.PersistentAttributeType.MANY_TO_ONE,
+                        Attribute.PersistentAttributeType.ONE_TO_ONE -> true
                         else -> false
                     }
                 }
@@ -43,7 +55,8 @@ class AdminEntityRegistry(
                     javaType = javaType,
                     idAttribute = idName,
                     idType = idType,
-                    attributes = filteredAttributes,
+                    attributes = listAttributes,
+                    detailAttributes = detailAttributes,
                 )
                 put(key, desc)
             }

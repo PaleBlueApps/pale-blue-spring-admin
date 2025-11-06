@@ -9,5 +9,8 @@ data class AdminEntityDescriptor(
     val javaType: Class<*>,
     val idAttribute: String,
     val idType: Class<*>,
+    // Attributes to display in list views (BASIC, EMBEDDED only)
     val attributes: List<Attribute<*, *>>,
+    // Attributes to display in detail views (includes BASIC, EMBEDDED, and singular associations)
+    val detailAttributes: List<Attribute<*, *>>,
 )
