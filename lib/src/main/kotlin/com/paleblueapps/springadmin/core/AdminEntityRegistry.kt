@@ -14,6 +14,13 @@ class AdminEntityRegistry(
 
     fun get(key: String): AdminEntityDescriptor? = entitiesByKey[key]
 
+    /**
+     * Resolve entity descriptor by its Java type. Useful for building links to associated entities.
+     * Tries to be resilient to proxy types by using assignability in both directions.
+     */
+    fun getByJavaType(type: Class<*>): AdminEntityDescriptor? =
+        entitiesByKey.values.find { it.javaType.isAssignableFrom(type) || type.isAssignableFrom(it.javaType) }
+
     private fun discoverEntities(): Map<String, AdminEntityDescriptor> =
         mutableMapOf<String, AdminEntityDescriptor>().apply {
             val metamodel = entityManager.metamodel
