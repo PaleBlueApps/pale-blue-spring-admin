@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
+<body>
+    <h2 class="text-xl font-semibold mb-4">
+        <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
+        <span class="text-gray-400">/</span>
+        <a th:href="${basePath + '/' + descriptor.entityName}" class="text-blue-600 hover:underline" th:text="${descriptor.displayName}">Entity</a>
+        <span class="text-gray-400">/</span>
+        <span class="text-gray-900" th:text="${id}">id</span>
+    </h2>
+
+    <div class="bg-white rounded-lg shadow border border-gray-200">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <div class="font-semibold">Details</div>
+            <div class="space-x-2">
+                <!-- Placeholder buttons for future edit/delete actions -->
+                <button type="button" class="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 bg-gray-50 cursor-not-allowed" title="Coming soon" disabled>Edit</button>
+                <button type="button" class="px-3 py-1.5 text-sm rounded border border-gray-300 text-gray-700 bg-gray-50 cursor-not-allowed" title="Coming soon" disabled>Delete</button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <tbody class="divide-y divide-gray-100">
+                    <tr th:each="attr, iStat : ${attributes}" class="hover:bg-gray-50">
+                        <th class="w-64 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" th:text="${attr}">Attribute</th>
+                        <td class="px-4 py-3 text-sm text-gray-800" th:text="${values[iStat.index]}">Value</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

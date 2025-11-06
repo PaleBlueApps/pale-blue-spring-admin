@@ -40,17 +40,18 @@ class AdminEntityController(
             }
         val data = crud.list(entity, page, pageSize, sort, dir, q)
         val rows =
-            data.content.map { entity ->
+            data.content.map { entityObj ->
                 attributeTitles.map { attribute ->
                     try {
-                        val field = entity.javaClass.getDeclaredField(attribute)
+                        val field = entityObj.javaClass.getDeclaredField(attribute)
                         field.isAccessible = true
-                        field.get(entity)
+                        field.get(entityObj)
                     } catch (ex: Exception) {
                         null
                     }
                 }
             }
+        val rowIds = data.content.map { crud.getId(it) }
         // Create pagination info with pre-calculated values for the view
         val paginationInfo = PaginationInfo.from(data)
 
@@ -59,6 +60,7 @@ class AdminEntityController(
         model.addAttribute("attributeTitles", attributeTitles)
         model.addAttribute("data", data)
         model.addAttribute("rows", rows)
+        model.addAttribute("rowIds", rowIds)
         model.addAttribute("pagination", paginationInfo)
         model.addAttribute("basePath", props.basePath)
         model.addAttribute("sort", sort)
@@ -72,5 +74,36 @@ class AdminEntityController(
         model.addAttribute("entities", registry.all())
 
         return "sda/entity-list"
+    }
+
+    @GetMapping("{entity}/{id}")
+    fun detail(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        model: Model,
+    ): String {
+        val desc = registry.get(entity) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+        val found = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+
+        val attributes = desc.attributes.map { it.name }
+        val values = attributes.map { attr ->
+            try {
+                val field = found.javaClass.getDeclaredField(attr)
+                field.isAccessible = true
+                field.get(found)
+            } catch (ex: Exception) {
+                null
+            }
+        }
+
+        model.addAttribute("title", props.ui.title)
+        model.addAttribute("descriptor", desc)
+        model.addAttribute("attributes", attributes)
+        model.addAttribute("values", values)
+        model.addAttribute("id", id)
+        model.addAttribute("basePath", props.basePath)
+        model.addAttribute("entities", registry.all())
+
+        return "sda/entity-detail"
     }
 }
