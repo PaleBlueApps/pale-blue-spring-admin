@@ -34,9 +34,11 @@ data class PaginationInfo(
             val endWindow = minOf(totalPages - 1, currentPage + 3)
             val middleWindow = (startWindow..endWindow).filter { it >= 3 && it <= totalPages - 4 }
 
-            // Last block: pages tp-3, tp-2, tp-1 (last 3 pages, bounded by 0)
-            val lastBlockStart = if (totalPages - 3 > 0) totalPages - 3 else 0
-            val lastBlock = if (totalPages > 0) (lastBlockStart until totalPages).toList() else emptyList()
+            // Last block: pages tp-3, tp-2, tp-1 (last 3 pages), adjusted to not overlap with first block
+            val rawLastBlockStart = if (totalPages - 3 > 0) totalPages - 3 else 0
+            val firstBlockMax = firstBlock.lastOrNull() ?: -1
+            val lastBlockStart = maxOf(rawLastBlockStart, firstBlockMax + 1)
+            val lastBlock = if (totalPages > 0 && lastBlockStart < totalPages) (lastBlockStart until totalPages).toList() else emptyList()
 
             // Show ellipsis if there's a gap between blocks
             val showEllipsisBefore = currentPage - 3 > 3
