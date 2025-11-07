@@ -2,6 +2,8 @@ package com.paleblueapps.springadmin.core
 
 import jakarta.persistence.EntityManager
 import jakarta.persistence.Lob
+import jakarta.persistence.Query
+import jakarta.persistence.metamodel.Attribute
 import java.lang.reflect.AnnotatedElement
 import java.util.UUID
 
@@ -17,131 +19,45 @@ class AdminCrudService(
         dir: String? = null,
         q: String? = null,
     ): DataPage<Any> {
-        val desc =
-            registry.get(entityKey) ?: throw IllegalArgumentException("Unknown entity: $entityKey")
+        val desc = findDescriptorOrThrow(entityKey)
 
-        val safeSort =
-            sort?.takeIf {
-                it.isNotBlank() && desc.attributes.any { a -> a.name == sort }
-            }
-        val direction = if (dir?.equals("desc", ignoreCase = true) == true) "desc" else "asc"
-        val orderClause =
-            if (safeSort != null) {
-                " order by x.$safeSort $direction"
-            } else {
-                ""
-            }
-
-        // Build dynamic JOINs and WHERE when searching, including foreign tables (singular associations)
-        var joinClause = ""
-        val whereClause =
-            if (!q.isNullOrBlank()) {
-                // Searchable fields on root entity
-                val rootSearchableAttrNames: Set<String> =
-                    buildSet {
-                        (desc.attributes + desc.detailAttributes).forEach { attr ->
-                            if (attr.javaType == String::class.java) {
-                                val member = attr.javaMember
-                                val annotated = member as? AnnotatedElement
-                                val hasLob = annotated?.getAnnotation(Lob::class.java) != null
-                                if (!hasLob) add(attr.name)
-                            }
-                        }
-                        if (desc.idType == String::class.java) add(desc.idAttribute)
-                    }
-
-                // Collect JOINs for singular associations and their searchable fields
-                data class AssocPredicate(val alias: String, val field: String)
-                val assocPredicates = mutableSetOf<AssocPredicate>()
-                val joinedAliases = mutableSetOf<String>()
-                desc.detailAttributes.forEach { attr ->
-                    val pat = attr.persistentAttributeType.name
-                    if (pat == "MANY_TO_ONE" || pat == "ONE_TO_ONE") {
-                        val alias = "j_" + attr.name
-                        if (joinedAliases.add(alias)) {
-                            // register join
-                            joinClause += " left join x.${attr.name} $alias"
-                        }
-                        val targetType = attr.javaType
-                        val targetDesc = registry.getByJavaType(targetType)
-                        if (targetDesc != null) {
-                            // target searchable string fields (exclude LOB)
-                            val targetStringFields = buildSet {
-                                (targetDesc.attributes + targetDesc.detailAttributes).forEach { ta ->
-                                    if (ta.javaType == String::class.java) {
-                                        val m = ta.javaMember
-                                        val ann = m as? AnnotatedElement
-                                        val hasLob = ann?.getAnnotation(Lob::class.java) != null
-                                        if (!hasLob) add(ta.name)
-                                    }
-                                }
-                                if (targetDesc.idType == String::class.java) add(targetDesc.idAttribute)
-                            }
-                            targetStringFields.forEach { f -> assocPredicates.add(AssocPredicate(alias, f)) }
-                        }
-                    }
-                }
-
-                // Build ORs across root and associations
-                val orsParts = mutableListOf<String>()
-                if (rootSearchableAttrNames.isNotEmpty()) {
-                    orsParts += rootSearchableAttrNames.map { "lower(x.$it) like :q" }
-                }
-                if (joinClause.isNotBlank() && assocPredicates.isNotEmpty()) {
-                    orsParts += assocPredicates.map { ap -> "lower(${ap.alias}.${ap.field}) like :q" }
-                }
-                if (orsParts.isNotEmpty()) {
-                    " where (" + orsParts.joinToString(" or ") + ")"
-                } else {
-                    ""
-                }
-            } else {
-                ""
-            }
+        val safeSort = normalizeSort(desc, sort)
+        val orderClause = buildOrderClause(safeSort, dir)
+        val search = buildSearchParts(desc, q)
 
         val queryString =
             buildString {
                 append("select x from ")
                 append(desc.jpaName)
                 append(" x")
-                append(joinClause)
-                append(whereClause)
+                append(search.joinClause)
+                append(search.whereClause)
                 append(orderClause)
             }
 
         @Suppress("UNCHECKED_CAST")
         val query =
             entityManager.createQuery(
-                // qlString =
                 queryString,
-                // resultClass =
                 desc.javaType as Class<Any>,
             )
-        if (size > 0) {
-            query.firstResult = page.coerceAtLeast(0) * size
-            query.maxResults = size
-        }
-        if (!q.isNullOrBlank() && whereClause.isNotBlank()) {
-            query.setParameter("q", "%" + q.trim().lowercase() + "%")
-        }
+        query.applyPaging(page = page, size = size)
+        query.applySearchParam(q = q, whereClause = search.whereClause)
+
         val result = query.resultList
-        val countJpql = buildString {
-            append("select count(*) from ")
-            append(desc.jpaName)
-            append(" x")
-            append(joinClause)
-            append(whereClause)
-        }
-        val countQuery =
-            entityManager.createQuery(
-                countJpql,
-                java.lang.Long::class.java,
-            )
-        if (!q.isNullOrBlank() && whereClause.isNotBlank()) {
-            countQuery.setParameter("q", "%" + q.trim().lowercase() + "%")
-        }
-        val countJava = countQuery.singleResult
-        val count = countJava.toLong()
+
+        val countJpql =
+            buildString {
+                append("select count(*) from ")
+                append(desc.jpaName)
+                append(" x")
+                append(search.joinClause)
+                append(search.whereClause)
+            }
+        val countQuery = entityManager.createQuery(countJpql, java.lang.Long::class.java)
+        countQuery.applySearchParam(q, search.whereClause)
+
+        val count = countQuery.singleResult.toLong()
         return DataPage(content = result, page = page, size = size, totalElements = count)
     }
 
@@ -149,10 +65,7 @@ class AdminCrudService(
         entityKey: String,
         idValue: String,
     ): Any? {
-        val desc =
-            registry.get(entityKey)
-                ?: throw IllegalArgumentException("Unknown entity: $entityKey")
-
+        val desc = findDescriptorOrThrow(entityKey)
         val id = convertId(idValue, desc.idType)
         return entityManager.find(desc.javaType, id)
     }
@@ -170,6 +83,109 @@ class AdminCrudService(
 
     fun getId(entity: Any): Any? = entityManager.entityManagerFactory.persistenceUnitUtil.getIdentifier(entity)
 
+    private fun findDescriptorOrThrow(entityKey: String): AdminEntityDescriptor =
+        registry.get(entityKey) ?: throw IllegalArgumentException("Unknown entity: $entityKey")
+
+    private fun normalizeSort(
+        desc: AdminEntityDescriptor,
+        sort: String?,
+    ): String? =
+        sort?.takeIf { candidate ->
+            candidate.isNotBlank() && desc.attributes.any { it.name == candidate }
+        }
+
+    private fun buildOrderClause(
+        sort: String?,
+        dir: String?,
+    ): String {
+        if (sort.isNullOrBlank()) return ""
+        val direction = if (dir.equals("desc", ignoreCase = true)) "desc" else "asc"
+        return " order by x.$sort $direction"
+    }
+
+    private fun buildSearchParts(
+        desc: AdminEntityDescriptor,
+        q: String?,
+    ): SearchParts {
+        if (q.isNullOrBlank()) return SearchParts()
+
+        val rootFields = rootSearchableFields(desc)
+        val assoc = buildAssocSearch(desc)
+
+        val orParts = mutableListOf<String>()
+        if (rootFields.isNotEmpty()) {
+            orParts += rootFields.map { "lower(x.$it) like :q" }
+        }
+        if (assoc.joinClause.isNotBlank() && assoc.predicates.isNotEmpty()) {
+            orParts += assoc.predicates.map { "lower(${it.alias}.${it.field}) like :q" }
+        }
+        val where = if (orParts.isNotEmpty()) " where (" + orParts.joinToString(" or ") + ")" else ""
+        return SearchParts(joinClause = assoc.joinClause, whereClause = where)
+    }
+
+    private fun rootSearchableFields(desc: AdminEntityDescriptor): Set<String> =
+        buildSet {
+            (desc.attributes + desc.detailAttributes).forEach { attr ->
+                if (isStringNonLob(attr)) add(attr.name)
+            }
+            if (desc.idType == String::class.java) add(desc.idAttribute)
+        }
+
+    private fun buildAssocSearch(desc: AdminEntityDescriptor): AssocSearch {
+        val predicates = mutableSetOf<AssocPredicate>()
+        val joinedAliases = mutableSetOf<String>()
+        val joinBuilder = StringBuilder()
+
+        desc.detailAttributes.forEach { attr ->
+            when (attr.persistentAttributeType) {
+                Attribute.PersistentAttributeType.MANY_TO_ONE,
+                Attribute.PersistentAttributeType.ONE_TO_ONE,
+                -> {
+                    val alias = "j_${attr.name}"
+                    if (joinedAliases.add(alias)) {
+                        joinBuilder.append(" left join x.${attr.name} $alias")
+                    }
+                    val targetDesc = registry.getByJavaType(attr.javaType) ?: return@forEach
+                    val targetFields =
+                        buildSet {
+                            (targetDesc.attributes + targetDesc.detailAttributes).forEach { ta ->
+                                if (isStringNonLob(ta)) add(ta.name)
+                            }
+                            if (targetDesc.idType == String::class.java) add(targetDesc.idAttribute)
+                        }
+                    targetFields.forEach { field -> predicates += AssocPredicate(alias, field) }
+                }
+
+                else -> Unit
+            }
+        }
+
+        return AssocSearch(joinClause = joinBuilder.toString(), predicates = predicates)
+    }
+
+    private fun isStringNonLob(attr: Attribute<*, *>): Boolean {
+        if (attr.javaType != String::class.java) return false
+        val annotated = attr.javaMember as? AnnotatedElement
+        return annotated?.getAnnotation(Lob::class.java) == null
+    }
+
+    private fun Query.applyPaging(
+        page: Int,
+        size: Int,
+    ) {
+        if (size <= 0) return
+        firstResult = page.coerceAtLeast(0) * size
+        maxResults = size
+    }
+
+    private fun Query.applySearchParam(
+        q: String?,
+        whereClause: String,
+    ) {
+        if (q.isNullOrBlank() || !whereClause.isNotBlank()) return
+        setParameter("q", "%" + q.trim().lowercase() + "%")
+    }
+
     private fun convertId(
         value: String,
         idType: Class<*>,
@@ -182,3 +198,18 @@ class AdminCrudService(
             else -> throw UnsupportedOperationException("Unsupported ID type: ${idType.name}")
         }
 }
+
+private data class SearchParts(
+    val joinClause: String = "",
+    val whereClause: String = "",
+)
+
+private data class AssocPredicate(
+    val alias: String,
+    val field: String,
+)
+
+private data class AssocSearch(
+    val joinClause: String,
+    val predicates: Set<AssocPredicate>,
+)
