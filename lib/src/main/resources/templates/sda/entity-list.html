@@ -56,8 +56,8 @@
                         th:each="row, rStat : ${rows}"
                         th:attr="data-href=${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index]}"
                         tabindex="0" role="link">
-                        <td class="px-4 py-3 text-sm text-gray-700" th:each="data, dStat : ${row}">
-                            <span th:text="${data}">cell</span>
+                        <td class="px-4 py-2 text-sm leading-tight text-gray-700 align-middle overflow-hidden" th:each="data, dStat : ${row}">
+                            <span class="block truncate max-w-60" th:text="${data}">cell</span>
                         </td>
                     </tr>
                     </tbody>
