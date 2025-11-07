@@ -1,6 +1,8 @@
 package com.paleblueapps.springadmin.core
 
 import jakarta.persistence.EntityManager
+import jakarta.persistence.Lob
+import java.lang.reflect.AnnotatedElement
 import java.util.UUID
 
 class AdminCrudService(
@@ -30,17 +32,66 @@ class AdminCrudService(
                 ""
             }
 
+        // Build dynamic JOINs and WHERE when searching, including foreign tables (singular associations)
+        var joinClause = ""
         val whereClause =
             if (!q.isNullOrBlank()) {
-                // Build a simple LIKE filter across string attributes
-                val stringAttrs =
-                    desc.attributes
-                        .filter {
-                            it.javaType == String::class.java
-                        }.map { it.name }
-                if (stringAttrs.isNotEmpty()) {
-                    val ors = stringAttrs.joinToString(" or ") { "lower(x.$it) like :q" }
-                    " where ($ors)"
+                // Searchable fields on root entity
+                val rootSearchableAttrNames: Set<String> =
+                    buildSet {
+                        (desc.attributes + desc.detailAttributes).forEach { attr ->
+                            if (attr.javaType == String::class.java) {
+                                val member = attr.javaMember
+                                val annotated = member as? AnnotatedElement
+                                val hasLob = annotated?.getAnnotation(Lob::class.java) != null
+                                if (!hasLob) add(attr.name)
+                            }
+                        }
+                        if (desc.idType == String::class.java) add(desc.idAttribute)
+                    }
+
+                // Collect JOINs for singular associations and their searchable fields
+                data class AssocPredicate(val alias: String, val field: String)
+                val assocPredicates = mutableSetOf<AssocPredicate>()
+                val joinedAliases = mutableSetOf<String>()
+                desc.detailAttributes.forEach { attr ->
+                    val pat = attr.persistentAttributeType.name
+                    if (pat == "MANY_TO_ONE" || pat == "ONE_TO_ONE") {
+                        val alias = "j_" + attr.name
+                        if (joinedAliases.add(alias)) {
+                            // register join
+                            joinClause += " left join x.${attr.name} $alias"
+                        }
+                        val targetType = attr.javaType
+                        val targetDesc = registry.getByJavaType(targetType)
+                        if (targetDesc != null) {
+                            // target searchable string fields (exclude LOB)
+                            val targetStringFields = buildSet {
+                                (targetDesc.attributes + targetDesc.detailAttributes).forEach { ta ->
+                                    if (ta.javaType == String::class.java) {
+                                        val m = ta.javaMember
+                                        val ann = m as? AnnotatedElement
+                                        val hasLob = ann?.getAnnotation(Lob::class.java) != null
+                                        if (!hasLob) add(ta.name)
+                                    }
+                                }
+                                if (targetDesc.idType == String::class.java) add(targetDesc.idAttribute)
+                            }
+                            targetStringFields.forEach { f -> assocPredicates.add(AssocPredicate(alias, f)) }
+                        }
+                    }
+                }
+
+                // Build ORs across root and associations
+                val orsParts = mutableListOf<String>()
+                if (rootSearchableAttrNames.isNotEmpty()) {
+                    orsParts += rootSearchableAttrNames.map { "lower(x.$it) like :q" }
+                }
+                if (joinClause.isNotBlank() && assocPredicates.isNotEmpty()) {
+                    orsParts += assocPredicates.map { ap -> "lower(${ap.alias}.${ap.field}) like :q" }
+                }
+                if (orsParts.isNotEmpty()) {
+                    " where (" + orsParts.joinToString(" or ") + ")"
                 } else {
                     ""
                 }
@@ -53,6 +104,7 @@ class AdminCrudService(
                 append("select x from ")
                 append(desc.jpaName)
                 append(" x")
+                append(joinClause)
                 append(whereClause)
                 append(orderClause)
             }
@@ -73,7 +125,13 @@ class AdminCrudService(
             query.setParameter("q", "%" + q.trim().lowercase() + "%")
         }
         val result = query.resultList
-        val countJpql = "select count(x) from " + desc.jpaName + " x" + whereClause
+        val countJpql = buildString {
+            append("select count(*) from ")
+            append(desc.jpaName)
+            append(" x")
+            append(joinClause)
+            append(whereClause)
+        }
         val countQuery =
             entityManager.createQuery(
                 countJpql,
