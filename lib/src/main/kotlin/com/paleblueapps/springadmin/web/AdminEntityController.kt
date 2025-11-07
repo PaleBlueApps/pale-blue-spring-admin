@@ -105,9 +105,12 @@ class AdminEntityController(
                     val targetDesc = registry.getByJavaType(value.javaClass)
                     val idVal = crud.getId(value)
                     val text = value.toString()
-                    val href = if (targetDesc != null && idVal != null) {
-                        props.basePath.trimEnd('/') + "/" + targetDesc.entityName + "/" + idVal
-                    } else null
+                    val href =
+                        if (targetDesc != null && idVal != null) {
+                            props.basePath.trimEnd('/') + "/" + targetDesc.entityName + "/" + idVal
+                        } else {
+                            null
+                        }
                     values += text
                     links += href
                 } else {
@@ -122,65 +125,71 @@ class AdminEntityController(
 
         // Discover collection relations annotated with @OneToMany or @ManyToMany
         val collectionTables: MutableList<Map<String, Any?>> = mutableListOf()
-        found.javaClass.declaredFields.filter { f ->
-            f.isAnnotationPresent(OneToMany::class.java) || f.isAnnotationPresent(ManyToMany::class.java)
-        }.forEach { f ->
-            try {
-                f.isAccessible = true
-                val raw = f.get(found)
+        found.javaClass.declaredFields
+            .filter { f ->
+                f.isAnnotationPresent(OneToMany::class.java) || f.isAnnotationPresent(ManyToMany::class.java)
+            }.forEach { f ->
+                try {
+                    f.isAccessible = true
+                    val raw = f.get(found)
 
-                // Determine target descriptor by inspecting a sample element; avoids relying on targetEntity (works with proxies too)
-                var sampleElem: Any? = null
-                var totalCount = 0
-                if (raw is Iterable<*>) {
-                    for (elem in raw) {
-                        if (elem != null) { sampleElem = elem; break }
-                    }
-                    totalCount = raw.count { true }
-                }
-
-                val targetDesc = if (sampleElem != null) registry.getByJavaType(sampleElem!!.javaClass) else null
-
-                val attributeTitles: List<String> = targetDesc?.attributes?.map { it.name } ?: emptyList()
-
-                // Build rows limited to a reasonable number to avoid huge pages
-                val maxRows = 100
-                val rows: MutableList<List<Any?>> = mutableListOf()
-                val rowIds: MutableList<Any?> = mutableListOf()
-                if (raw is Iterable<*>) {
-                    var i = 0
-                    for (elem in raw) {
-                        if (elem == null) continue
-                        if (i >= maxRows) break
-                        val row = attributeTitles.map { attrName ->
-                            try {
-                                val fld = elem.javaClass.getDeclaredField(attrName)
-                                fld.isAccessible = true
-                                fld.get(elem)
-                            } catch (_: Exception) {
-                                null
+                    // Determine target descriptor by inspecting a sample element; avoids relying on targetEntity (works with proxies too)
+                    var sampleElem: Any? = null
+                    var totalCount = 0
+                    if (raw is Iterable<*>) {
+                        for (elem in raw) {
+                            if (elem != null) {
+                                sampleElem = elem
+                                break
                             }
                         }
-                        rows += row
-                        rowIds += crud.getId(elem)
-                        i++
+                        totalCount = raw.count { true }
                     }
-                }
 
-                collectionTables += mapOf(
-                    "name" to f.name,
-                    "targetEntity" to (targetDesc?.entityName ?: ""),
-                    "targetDisplayName" to (targetDesc?.displayName ?: f.name),
-                    "attributeTitles" to attributeTitles,
-                    "rows" to rows,
-                    "rowIds" to rowIds,
-                    "totalCount" to totalCount,
-                    "limited" to (totalCount > rows.size)
-                )
-            } catch (_: Exception) {
-                // ignore individual relation failures
+                    val targetDesc = if (sampleElem != null) registry.getByJavaType(sampleElem!!.javaClass) else null
+
+                    val attributeTitles: List<String> = targetDesc?.attributes?.map { it.name } ?: emptyList()
+
+                    // Build rows limited to a reasonable number to avoid huge pages
+                    val maxRows = 100
+                    val rows: MutableList<List<Any?>> = mutableListOf()
+                    val rowIds: MutableList<Any?> = mutableListOf()
+                    if (raw is Iterable<*>) {
+                        var i = 0
+                        for (elem in raw) {
+                            if (elem == null) continue
+                            if (i >= maxRows) break
+                            val row =
+                                attributeTitles.map { attrName ->
+                                    try {
+                                        val fld = elem.javaClass.getDeclaredField(attrName)
+                                        fld.isAccessible = true
+                                        fld.get(elem)
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                }
+                            rows += row
+                            rowIds += crud.getId(elem)
+                            i++
+                        }
+                    }
+
+                    collectionTables +=
+                        mapOf(
+                            "name" to f.name,
+                            "targetEntity" to (targetDesc?.entityName ?: ""),
+                            "targetDisplayName" to (targetDesc?.displayName ?: f.name),
+                            "attributeTitles" to attributeTitles,
+                            "rows" to rows,
+                            "rowIds" to rowIds,
+                            "totalCount" to totalCount,
+                            "limited" to (totalCount > rows.size),
+                        )
+                } catch (_: Exception) {
+                    // ignore individual relation failures
+                }
             }
-        }
 
         model.addAttribute("title", props.ui.title)
         model.addAttribute("descriptor", desc)
