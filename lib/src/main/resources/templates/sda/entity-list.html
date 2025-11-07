@@ -1,40 +1,42 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
 <body>
-<div class="flex flex-col h-full">
-    <h2 class="text-xl font-semibold mb-4">
-        <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
-        <span class="text-gray-400">/</span>
-        <span th:text="${descriptor.displayName}">Entity</span>
-    </h2>
-    <!-- Toolbar: page size selector and sort placeholder -->
-    <div class="mb-3 flex items-center justify-between">
-        <form th:action="@{${basePath + '/' + descriptor.entityName}}" method="get"
-              class="flex items-center justify-between w-full gap-4">
-            <input type="hidden" name="page" value="0"/>
-            <input type="hidden" name="sort" th:value="${sort}" th:if="${sort}"/>
-            <input type="hidden" name="dir" th:value="${dir}" th:if="${dir}"/>
-            <div class="flex items-center gap-2">
-                <label for="size" class="text-sm text-gray-600">Rows per page</label>
-                <select id="size" name="size" class="border rounded px-2 py-1 text-sm" th:value="${size}"
-                        onchange="this.form.submit()">
-                    <option th:each="s : ${pageSizes}" th:value="${s}" th:text="${s}" th:selected="${s == size}">25
-                    </option>
-                </select>
-            </div>
-            <div class="flex items-center gap-2 ml-auto">
-                <input type="text" name="q" placeholder="Search" class="border rounded px-2 py-1 text-sm"
-                       th:value="${q}"/>
-                <button type="submit" class="px-2 py-1 text-sm border rounded bg-gray-50 hover:bg-gray-100">Search
-                </button>
-            </div>
-        </form>
+<div class="flex flex-col h-full pb-6">
+    <div class="sticky top-0 bg-gray-50 z-10 pt-6">
+        <h2 class="text-xl font-semibold mb-4">
+            <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
+            <span class="text-gray-400">/</span>
+            <span th:text="${descriptor.displayName}">Entity</span>
+        </h2>
+        <!-- Toolbar: page size selector and sort placeholder -->
+        <div class="mb-3 flex items-center justify-between">
+            <form th:action="@{${basePath + '/' + descriptor.entityName}}" method="get"
+                  class="flex items-center justify-between w-full gap-4">
+                <input type="hidden" name="page" value="0"/>
+                <input type="hidden" name="sort" th:value="${sort}" th:if="${sort}"/>
+                <input type="hidden" name="dir" th:value="${dir}" th:if="${dir}"/>
+                <div class="flex items-center gap-2">
+                    <label for="size" class="text-sm text-gray-600">Rows per page</label>
+                    <select id="size" name="size" class="border rounded px-2 py-1 text-sm" th:value="${size}"
+                            onchange="this.form.submit()">
+                        <option th:each="s : ${pageSizes}" th:value="${s}" th:text="${s}" th:selected="${s == size}">25
+                        </option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 ml-auto">
+                    <input type="text" name="q" placeholder="Search" class="border rounded px-2 py-1 text-sm"
+                           th:value="${q}"/>
+                    <button type="submit" class="px-2 py-1 text-sm border rounded bg-gray-50 hover:bg-gray-100">Search
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <div class="flex-1 overflow-y-scroll">
+    <div class="flex-1">
         <div class="bg-white shadow border border-gray-200">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 relative">
+                <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                     <tr>
                         <th scope="col"

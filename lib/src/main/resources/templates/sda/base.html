@@ -34,10 +34,10 @@
         </aside>
 
         <!-- Main content: scrolls vertically; table area scrolls horizontally -->
-        <main class="flex-1 h-[calc(100vh-56px)] py-6 flex flex-col overflow-x-hidden">
+        <main class="flex-1 h-[calc(100vh-56px)] flex flex-col overflow-x-hidden">
             <div th:if="${message}" class="mb-4 rounded border border-green-200 bg-green-50 text-green-800 px-4 py-3" th:text="${message}"></div>
             <div th:if="${error}" class="mb-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-3" th:text="${error}"></div>
-            <div th:insert="${content}" class="flex-1 overflow-y-hidden"></div>
+            <div th:insert="${content}" class="flex-1"></div>
         </main>
     </div>
 </div>
