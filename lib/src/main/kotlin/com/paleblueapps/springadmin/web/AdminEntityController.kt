@@ -6,6 +6,7 @@ import com.paleblueapps.springadmin.core.AdminEntityRegistry
 import com.paleblueapps.springadmin.core.PaginationInfo
 import jakarta.persistence.ManyToMany
 import jakarta.persistence.OneToMany
+import jakarta.persistence.metamodel.Attribute
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
@@ -54,7 +55,6 @@ class AdminEntityController(
                 }
             }
         val rowIds = data.content.map { crud.getId(it) }
-        // Create pagination info with pre-calculated values for the view
         val paginationInfo = PaginationInfo.from(data)
 
         model.addAttribute("title", props.ui.title)
@@ -101,7 +101,13 @@ class AdminEntityController(
                 if (value == null) {
                     values += null
                     links += null
-                } else if (attr.persistentAttributeType.name == "MANY_TO_ONE" || attr.persistentAttributeType.name == "ONE_TO_ONE") {
+                } else if (
+                    attr.persistentAttributeType in
+                    setOf(
+                        Attribute.PersistentAttributeType.MANY_TO_ONE,
+                        Attribute.PersistentAttributeType.ONE_TO_ONE,
+                    )
+                ) {
                     val targetDesc = registry.getByJavaType(value.javaClass)
                     val idVal = crud.getId(value)
                     val text = value.toString()
@@ -126,12 +132,12 @@ class AdminEntityController(
         // Discover collection relations annotated with @OneToMany or @ManyToMany
         val collectionTables: MutableList<Map<String, Any?>> = mutableListOf()
         found.javaClass.declaredFields
-            .filter { f ->
-                f.isAnnotationPresent(OneToMany::class.java) || f.isAnnotationPresent(ManyToMany::class.java)
-            }.forEach { f ->
+            .filter { field ->
+                field.isAnnotationPresent(OneToMany::class.java) || field.isAnnotationPresent(ManyToMany::class.java)
+            }.forEach { field ->
                 try {
-                    f.isAccessible = true
-                    val raw = f.get(found)
+                    field.isAccessible = true
+                    val raw = field.get(found)
 
                     // Determine target descriptor by inspecting a sample element; avoids relying on targetEntity (works with proxies too)
                     var sampleElem: Any? = null
@@ -143,10 +149,10 @@ class AdminEntityController(
                                 break
                             }
                         }
-                        totalCount = raw.count { true }
+                        totalCount = (raw as? Collection<*>)?.size ?: raw.count { true }
                     }
 
-                    val targetDesc = if (sampleElem != null) registry.getByJavaType(sampleElem!!.javaClass) else null
+                    val targetDesc = if (sampleElem != null) registry.getByJavaType(sampleElem.javaClass) else null
 
                     val attributeTitles: List<String> = targetDesc?.attributes?.map { it.name } ?: emptyList()
 
@@ -177,9 +183,9 @@ class AdminEntityController(
 
                     collectionTables +=
                         mapOf(
-                            "name" to f.name,
+                            "name" to field.name,
                             "targetEntity" to (targetDesc?.entityName ?: ""),
-                            "targetDisplayName" to (targetDesc?.displayName ?: f.name),
+                            "targetDisplayName" to (targetDesc?.displayName ?: field.name),
                             "attributeTitles" to attributeTitles,
                             "rows" to rows,
                             "rowIds" to rowIds,

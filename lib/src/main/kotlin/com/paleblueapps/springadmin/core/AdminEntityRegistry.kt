@@ -9,7 +9,10 @@ class AdminEntityRegistry(
 ) {
     private val entitiesByKey: Map<String, AdminEntityDescriptor> by lazy { discoverEntities() }
 
-    fun all(): List<AdminEntityDescriptor> = entitiesByKey.values.sortedBy { it.displayName.lowercase(Locale.getDefault()) }
+    fun all(): List<AdminEntityDescriptor> =
+        entitiesByKey.values.sortedBy {
+            it.displayName.lowercase(Locale.getDefault())
+        }
 
     fun get(key: String): AdminEntityDescriptor? = entitiesByKey[key]
 
@@ -18,7 +21,9 @@ class AdminEntityRegistry(
      * Tries to be resilient to proxy types by using assignability in both directions.
      */
     fun getByJavaType(type: Class<*>): AdminEntityDescriptor? =
-        entitiesByKey.values.find { it.javaType.isAssignableFrom(type) || type.isAssignableFrom(it.javaType) }
+        entitiesByKey.values.find {
+            it.javaType.isAssignableFrom(type) || type.isAssignableFrom(it.javaType)
+        }
 
     private fun discoverEntities(): Map<String, AdminEntityDescriptor> =
         mutableMapOf<String, AdminEntityDescriptor>()
@@ -39,25 +44,23 @@ class AdminEntityRegistry(
                     // Attributes for list views: BASIC and EMBEDDED only
                     val listAttributes =
                         et.attributes.filter { attr ->
-                            when (attr.persistentAttributeType) {
-                                Attribute.PersistentAttributeType.BASIC,
-                                Attribute.PersistentAttributeType.EMBEDDED,
-                                -> true
-                                else -> false
-                            }
+                            attr.persistentAttributeType in
+                                setOf(
+                                    Attribute.PersistentAttributeType.BASIC,
+                                    Attribute.PersistentAttributeType.EMBEDDED,
+                                )
                         }
 
                     // Attributes for detail views: include singular associations (MANY_TO_ONE, ONE_TO_ONE)
                     val detailAttributes =
                         et.attributes.filter { attr ->
-                            when (attr.persistentAttributeType) {
-                                Attribute.PersistentAttributeType.BASIC,
-                                Attribute.PersistentAttributeType.EMBEDDED,
-                                Attribute.PersistentAttributeType.MANY_TO_ONE,
-                                Attribute.PersistentAttributeType.ONE_TO_ONE,
-                                -> true
-                                else -> false
-                            }
+                            attr.persistentAttributeType in
+                                setOf(
+                                    Attribute.PersistentAttributeType.BASIC,
+                                    Attribute.PersistentAttributeType.EMBEDDED,
+                                    Attribute.PersistentAttributeType.MANY_TO_ONE,
+                                    Attribute.PersistentAttributeType.ONE_TO_ONE,
+                                )
                         }
 
                     val desc =

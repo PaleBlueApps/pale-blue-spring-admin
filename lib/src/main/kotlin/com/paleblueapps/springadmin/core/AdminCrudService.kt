@@ -148,7 +148,7 @@ class AdminCrudService(
                     val targetDesc = registry.getByJavaType(attr.javaType) ?: return@forEach
                     val targetFields =
                         buildSet {
-                            (targetDesc.attributes + targetDesc.detailAttributes).forEach { ta ->
+                            targetDesc.detailAttributes.forEach { ta ->
                                 if (isStringNonLob(ta)) add(ta.name)
                             }
                             if (targetDesc.idType == String::class.java) add(targetDesc.idAttribute)
