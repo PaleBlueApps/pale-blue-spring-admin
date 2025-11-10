@@ -81,10 +81,8 @@ fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
         .authorizeHttpRequests { auth ->
             auth
                 .requestMatchers("/admin/**").hasRole("ADMIN") // match your configured base path
-                .anyRequest().permitAll()
+                .anyRequest().permitAll() // To allow without authentication NOTE: use your preferred authentication mechanism here
         }
-        .formLogin {}
-        .csrf { it.ignoringRequestMatchers("/admin/**") }
     return http.build()
 }
 ```
