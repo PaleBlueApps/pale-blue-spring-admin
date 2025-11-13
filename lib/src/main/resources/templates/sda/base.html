@@ -7,7 +7,7 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="h-screen bg-gray-50 text-gray-900 overflow-x-hidden">
+<body class="h-screen bg-gray-50 text-gray-900 overflow-x-hidden overflow-y-hidden">
 <!-- Fixed Header -->
 <header class="fixed top-0 left-0 right-0 z-30 bg-gray-800 text-white">
     <div class="mx-auto max-w-screen-2xl px-4 py-3 flex items-center justify-between">
@@ -34,12 +34,35 @@
         </aside>
 
         <!-- Main content: scrolls vertically; table area scrolls horizontally -->
-        <main class="flex-1 h-[calc(100vh-56px)] overflow-y-auto py-6">
+        <main class="flex-1 h-[calc(100vh-56px)] flex flex-col overflow-x-hidden">
             <div th:if="${message}" class="mb-4 rounded border border-green-200 bg-green-50 text-green-800 px-4 py-3" th:text="${message}"></div>
             <div th:if="${error}" class="mb-4 rounded border border-red-200 bg-red-50 text-red-800 px-4 py-3" th:text="${error}"></div>
-            <div th:insert="${content}"></div>
+            <div th:insert="${content}" class="flex-1"></div>
         </main>
     </div>
 </div>
+<script>
+// Make any table row with data-href clickable and keyboard accessible
+(function(){
+  document.addEventListener('click', function(e){
+    const tr = e.target.closest && e.target.closest('tr[data-href]');
+    if (tr) {
+      const href = tr.getAttribute('data-href');
+      if (href) { window.location.href = href; }
+    }
+  }, false);
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' ') {
+      const el = document.activeElement;
+      if (el && el.matches && el.matches('tr[data-href]')) {
+        e.preventDefault();
+        const href = el.getAttribute('data-href');
+        if (href) { window.location.href = href; }
+      }
+    }
+  }, false);
+})();
+</script>
 </body>
 </html>
