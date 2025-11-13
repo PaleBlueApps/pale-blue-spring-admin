@@ -58,7 +58,7 @@ mavenPublishing {
     coordinates(
         groupId = "com.paleblueapps",
         artifactId = "springadmin",
-        version = "1.0.0",
+        version = "1.1.0",
     )
 
     pom {
