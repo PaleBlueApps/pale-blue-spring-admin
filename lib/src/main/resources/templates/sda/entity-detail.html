@@ -45,11 +45,16 @@
                     <span class="text-gray-400">/</span>
                     <span class="text-gray-600" th:text="${rel['targetDisplayName']}">Target</span>
                 </div>
-                <div class="text-sm text-gray-500" th:if="${rel['totalCount'] != null}">
-                    <span th:text="${rel['totalCount']}">0</span>
-                    <span>items</span>
-                    <span th:if="${rel['limited'] == true}"
-                          class="ml-2 inline-flex items-center rounded bg-yellow-50 px-2 py-0.5 text-xs text-yellow-800 border border-yellow-200">showing first 100</span>
+                <div class="flex items-center gap-3">
+                    <div class="text-sm text-gray-500" th:if="${rel['totalCount'] != null}">
+                        <span th:text="${rel['totalCount']}">0</span>
+                        <span>items</span>
+                        <span th:if="${rel['limited'] == true}"
+                              class="ml-2 inline-flex items-center rounded bg-yellow-50 px-2 py-0.5 text-xs text-yellow-800 border border-yellow-200"
+                              th:text="${'showing first ' + rel['previewLimit']}">showing first 25</span>
+                    </div>
+                    <a class="text-sm text-blue-600 hover:underline"
+                       th:href="${basePath + '/' + descriptor.entityName + '/' + id + '/rel/' + rel['name']}">Open</a>
                 </div>
             </div>
             <div class="p-4" th:if="${#lists.isEmpty(rel['rows'])}">

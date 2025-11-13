@@ -157,7 +157,7 @@ class AdminEntityController(
                     val attributeTitles: List<String> = targetDesc?.attributes?.map { it.name } ?: emptyList()
 
                     // Build rows limited to a reasonable number to avoid huge pages
-                    val maxRows = 100
+                    val maxRows = props.pagination.defaultSize
                     val rows: MutableList<List<Any?>> = mutableListOf()
                     val rowIds: MutableList<Any?> = mutableListOf()
                     if (raw is Iterable<*>) {
@@ -191,6 +191,7 @@ class AdminEntityController(
                             "rowIds" to rowIds,
                             "totalCount" to totalCount,
                             "limited" to (totalCount > rows.size),
+                            "previewLimit" to maxRows,
                         )
                 } catch (_: Exception) {
                     // ignore individual relation failures
@@ -208,5 +209,139 @@ class AdminEntityController(
         model.addAttribute("entities", registry.all())
 
         return "sda/entity-detail"
+    }
+
+    // Paginated and searchable view for collection relations from an entity detail page
+    @GetMapping("{entity}/{id}/rel/{rel}")
+    fun relationList(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        @PathVariable rel: String,
+        @RequestParam(defaultValue = "0") page: Int,
+        @RequestParam(defaultValue = "-1") size: Int,
+        @RequestParam(required = false) sort: String?,
+        @RequestParam(required = false) dir: String?,
+        @RequestParam(required = false) q: String?,
+        model: Model,
+    ): String {
+        val parentDesc = registry.get(entity) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+        val parent = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+
+        val pageSize = if (size <= 0) props.pagination.defaultSize else size.coerceAtMost(props.pagination.maxSize)
+
+        // Load relation collection reflectively
+        val field = try {
+            parent.javaClass.getDeclaredField(rel).apply { isAccessible = true }
+        } catch (ex: Exception) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown relation: $rel")
+        }
+
+        val raw = field.get(parent)
+        val items: List<Any> = when (raw) {
+            is Iterable<*> -> raw.filterNotNull().map { it as Any }
+            else -> emptyList()
+        }
+
+        // Determine target descriptor from first element
+        val targetDesc = items.firstOrNull()?.let { registry.getByJavaType(it.javaClass) }
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Empty or unknown relation type")
+
+        val attributeTitles = targetDesc.attributes.map { it.name }
+
+        // In-memory search and sort (minimal solution)
+        val filtered =
+            if (q.isNullOrBlank()) items else items.filter { elem ->
+                try {
+                    val qlc = q.trim().lowercase()
+                    // match id if string-like
+                    val idVal = crud.getId(elem)?.toString()?.lowercase()
+                    val idMatch = idVal?.contains(qlc) == true
+                    val fieldMatch = attributeTitles.any { an ->
+                        try {
+                            val f = elem.javaClass.getDeclaredField(an)
+                            f.isAccessible = true
+                            val v = f.get(elem)
+                            (v as? String)?.lowercase()?.contains(qlc) == true
+                        } catch (_: Exception) {
+                            false
+                        }
+                    }
+                    idMatch || fieldMatch
+                } catch (_: Exception) {
+                    false
+                }
+            }
+
+        val sorted =
+            if (sort.isNullOrBlank() || !attributeTitles.contains(sort)) {
+                filtered
+            } else {
+                val comparator = Comparator<Any> { a, b ->
+                    val av = try {
+                        val f = a.javaClass.getDeclaredField(sort).apply { isAccessible = true }
+                        f.get(a) as? Comparable<Any>
+                    } catch (_: Exception) { null }
+                    val bv = try {
+                        val f = b.javaClass.getDeclaredField(sort).apply { isAccessible = true }
+                        f.get(b) as? Comparable<Any>
+                    } catch (_: Exception) { null }
+
+                    when {
+                        av == null && bv == null -> 0
+                        av == null -> -1
+                        bv == null -> 1
+                        else -> av.compareTo(bv)
+                    }
+                }
+                if (dir.equals("desc", true)) filtered.sortedWith(comparator.reversed()) else filtered.sortedWith(comparator)
+            }
+
+        val total = sorted.size
+        val from = (page.coerceAtLeast(0) * pageSize).coerceAtMost(total)
+        val to = (from + pageSize).coerceAtMost(total)
+        val pageContent = sorted.subList(from, to)
+
+        val rows = pageContent.map { elem ->
+            attributeTitles.map { attrName ->
+                try {
+                    val f = elem.javaClass.getDeclaredField(attrName)
+                    f.isAccessible = true
+                    f.get(elem)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
+        val rowIds = pageContent.map { crud.getId(it) }
+
+        val dataPage = com.paleblueapps.springadmin.core.DataPage(
+            content = pageContent,
+            page = page,
+            size = pageSize,
+            totalElements = total.toLong(),
+        )
+        val paginationInfo = PaginationInfo.from(dataPage)
+
+        val listBaseUrl = props.basePath + "/" + parentDesc.entityName + "/" + id + "/rel/" + rel
+
+        model.addAttribute("title", props.ui.title)
+        model.addAttribute("parentDescriptor", parentDesc)
+        model.addAttribute("descriptor", targetDesc)
+        model.addAttribute("relName", rel)
+        model.addAttribute("attributeTitles", attributeTitles)
+        model.addAttribute("rows", rows)
+        model.addAttribute("rowIds", rowIds)
+        model.addAttribute("pagination", paginationInfo)
+        model.addAttribute("basePath", props.basePath)
+        model.addAttribute("listBaseUrl", listBaseUrl)
+        model.addAttribute("sort", sort)
+        model.addAttribute("dir", dir)
+        model.addAttribute("q", q)
+        model.addAttribute("size", pageSize)
+        val options = listOf(10, 25, 50, 100, 200).filter { it <= props.pagination.maxSize }
+        model.addAttribute("pageSizes", options)
+        model.addAttribute("entities", registry.all())
+
+        return "sda/relation-list"
     }
 }

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
+<body>
+<div class="flex flex-col h-full pb-6">
+    <div class="sticky top-0 bg-gray-50 z-10 pt-6">
+        <h2 class="text-xl font-semibold mb-4">
+            <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
+            <span class="text-gray-400">/</span>
+            <a th:href="${basePath + '/' + parentDescriptor.entityName}" class="text-blue-600 hover:underline"
+               th:text="${parentDescriptor.displayName}">Parent</a>
+            <span class="text-gray-400">/</span>
+            <span class="text-gray-600" th:text="${descriptor.displayName}">Relation</span>
+            <span class="text-gray-400">/</span>
+            <span class="text-gray-500" th:text="${relName}">rel</span>
+        </h2>
+        <!-- Toolbar: page size selector and search -->
+        <div class="mb-3 flex items-center justify-between">
+            <form th:action="@{${listBaseUrl}}" method="get"
+                  class="flex items-center justify-between w-full gap-4">
+                <input type="hidden" name="page" value="0"/>
+                <input type="hidden" name="sort" th:value="${sort}" th:if="${sort}"/>
+                <input type="hidden" name="dir" th:value="${dir}" th:if="${dir}"/>
+                <div class="flex items-center gap-2">
+                    <label for="size" class="text-sm text-gray-600">Rows per page</label>
+                    <select id="size" name="size" class="border rounded px-2 py-1 text-sm" th:value="${size}"
+                            onchange="this.form.submit()">
+                        <option th:each="s : ${pageSizes}" th:value="${s}" th:text="${s}" th:selected="${s == size}">25
+                        </option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 ml-auto">
+                    <input type="text" name="q" placeholder="Search" class="border rounded px-2 py-1 text-sm"
+                           th:value="${q}"/>
+                    <button type="submit" class="px-2 py-1 text-sm border rounded bg-gray-50 hover:bg-gray-100">Search
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="flex-1">
+        <div class="bg-white shadow border border-gray-200">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col"
+                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                            th:each="attribute,iterStat : ${attributeTitles}">
+                            <a class="inline-flex items-center gap-1 hover:underline"
+                               th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + '&sort=' + attribute + '&dir=' + ((sort == attribute and dir == 'asc') ? 'desc' : 'asc') + (q != null ? '&q=' + q : '')}"
+                               th:text="${attribute}"></a>
+                            <a th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + (q != null ? '&q=' + q : '')}"
+                               th:if="${sort == attribute}" class="text-gray-400"
+                               th:text="${dir == 'desc' ? '▼' : '▲'}">▲</a>
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                    <tr class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        th:each="row, rStat : ${rows}"
+                        th:attr="data-href=${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index]}"
+                        tabindex="0" role="link">
+                        <td class="px-4 py-2 text-sm leading-tight text-gray-700 align-middle overflow-hidden" th:each="data, dStat : ${row}">
+                            <span class="block truncate max-w-60" th:text="${data}">cell</span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center gap-2">
+            <div th:replace="~{sda/pagination :: pagination(${pagination}, ${listBaseUrl}, ${size}, ${sort}, ${dir}, ${q})}"></div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
