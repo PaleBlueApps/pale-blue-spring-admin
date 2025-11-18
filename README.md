@@ -88,3 +88,18 @@ fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
 ```
 
 If you change the base path, update the matcher accordingly.
+
+## Run the example project
+
+Clone the spring admin project to your desired location. The project contains a module named `example` which servers as a demo app.
+
+The example project is a simple Spring Boot app that uses the spring admin plugin. It has a single entity `User`.
+
+Run the command `./gradlew bootRun` from the spring admin's root directory.
+
+You can also run the example project using IntelliJ IDEA's graphical interface. It first requires a manual environment variable setup. Add a environment variable `DB_PATH` with value `example/data/app.db` and save it. Run the `ExampleApplication` from the GUI.
+
+Once the example project runs, go to your web browser and navigate to `http://localhost:8080/admin` to access the admin UI.
+
+> [!NOTE]
+> If you encounter an error `Caused by: org.sqlite.SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: users.id)` when running the app, navigate to `example/data` directory and delete the `app.db` file. Then run the app again.
