@@ -1,4 +1,5 @@
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -15,4 +16,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "SpringAdmin"
-include(":lib")
+
+include(":lib", ":example")
