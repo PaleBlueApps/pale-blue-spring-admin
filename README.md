@@ -97,7 +97,7 @@ The example project is a simple Spring Boot app that uses the spring admin plugi
 
 Run the command `./gradlew bootRun` from the spring admin's root directory.
 
-You can also run the example project using IntelliJ IDEA's graphical interface. It first requires a manual environment variable setup. Add a environment variable `DB_PATH` with value `example/data/app.db` and save it. Run the `ExampleApplication` from the GUI.
+You can also run the example project using IntelliJ IDEA's graphical interface. It first requires a manual environment variable setup. Add an environment variable `DB_PATH` with value `example/data/app.db` and save it. Run the `ExampleApplication` from the GUI.
 
 Once the example project runs, go to your web browser and navigate to `http://localhost:8080/admin` to access the admin UI.
 
