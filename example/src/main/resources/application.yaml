@@ -1,16 +1,12 @@
 spring:
   datasource:
-    url: jdbc:sqlite:./data/app.db
+    url: jdbc:sqlite:./example/data/app.db
     driver-class-name: org.sqlite.JDBC
 
   jpa:
     hibernate:
       ddl-auto: update
     database-platform: org.hibernate.community.dialect.SQLiteDialect
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
 
   sql:
     init:
