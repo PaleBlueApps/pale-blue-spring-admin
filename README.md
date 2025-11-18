@@ -91,7 +91,7 @@ If you change the base path, update the matcher accordingly.
 
 ## Run the example project
 
-Clone the spring admin project to your desired location. The project contains a module named `example` which servers as a demo app.
+Clone the spring admin project to your desired location. The project contains a module named `example` which serves as a demo app.
 
 The example project is a simple Spring Boot app that uses the spring admin plugin. It has a single entity `User`.
 
