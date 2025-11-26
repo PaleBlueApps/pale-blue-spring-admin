@@ -103,4 +103,4 @@ You can also run the example project using IntelliJ IDEA's graphical interface. 
 Once the example project runs, go to your web browser and navigate to `http://localhost:8080/admin` to access the admin UI.
 
 > [!NOTE]
-> If you want to update the sample `data.sql` file, that will require deletion of `app.db` file inside `example/data` directory before re-running the project.
+> If you encounter an error `Caused by: org.sqlite.SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: users.id)` when running the app, navigate to `example/data` directory and delete the `app.db` file. Then run the app again.
