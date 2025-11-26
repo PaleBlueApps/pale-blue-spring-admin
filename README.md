@@ -93,7 +93,8 @@ If you change the base path, update the matcher accordingly.
 
 Clone the spring admin project to your desired location. The project contains a module named `example` which serves as a demo app.
 
-The example project is a simple Spring Boot app that uses the spring admin plugin. It has a single entity `User`.
+The example project is a simple Spring Boot app that uses the spring admin plugin. It has a some entities like `User`, `UserRole`, `Role` and `Post`.
+The example shows how Spring Admin can be used to demonstrate a fairly complex database relationships in a clean and modern UI. 
 
 Run the command `./gradlew bootRun` from the spring admin's root directory.
 
