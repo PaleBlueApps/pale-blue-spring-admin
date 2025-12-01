@@ -90,17 +90,26 @@ fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
 If you change the base path, update the matcher accordingly.
 
 ## Run the example project
+The repository includes an `example` module that serves as a demo Spring Boot application.
+It showcases how Spring Admin can represent complex database relationships in a clean, modern admin UI.
 
-Clone the spring admin project to your desired location. The project contains a module named `example` which serves as a demo app.
+### Run via Gradle
+- Navigate to the root directory of spring-admin.
+- Run the following command:
 
-The example project is a simple Spring Boot app that uses the spring admin plugin. It has a some entities like `User`, `UserRole`, `Role` and `Post`.
-The example shows how Spring Admin can be used to demonstrate a fairly complex database relationships in a clean and modern UI. 
+```shell
+./gradlew bootRun
+```
 
-Run the command `./gradlew bootRun` from the spring admin's root directory.
+### Run via IntelliJ IDEA
+- Open the project in IntelliJ IDEA
+- Configure an environment variable:
+  - Name: `DB_PATH`
+  - Value: `example/data/app.db`
+- Run the `ExampleApplication` class from the IDE
 
-You can also run the example project using IntelliJ IDEA's graphical interface. It first requires a manual environment variable setup. Add an environment variable `DB_PATH` with value `example/data/app.db` and save it. Run the `ExampleApplication` from the GUI.
-
-Once the example project runs, go to your web browser and navigate to `http://localhost:8080/admin` to access the admin UI.
+### Accessing the Admin UI
+- Once the application is running, navigate to `http:localhost:8080/admin` on your web browser.
 
 > [!NOTE]
 > If you encounter an error `Caused by: org.sqlite.SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: users.id)` when running the app, navigate to `example/data` directory and delete the `app.db` file. Then run the app again.
