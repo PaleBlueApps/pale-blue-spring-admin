@@ -1,0 +1,24 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:${DB_PATH:data/app.db}
+    driver-class-name: org.sqlite.JDBC
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:data.sql
+
+  data:
+    admin:
+      enabled: true
+      base-path: /admin
+      ui:
+        title: My Admin
+      pagination:
+        default-size: 25
+        max-size: 200
