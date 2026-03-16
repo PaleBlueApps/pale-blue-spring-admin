@@ -2,6 +2,7 @@ package com.paleblueapps.springadmin.web
 
 import com.paleblueapps.springadmin.autoconfigure.AdminProperties
 import com.paleblueapps.springadmin.core.AdminCrudService
+import com.paleblueapps.springadmin.core.AdminEntityDescriptor
 import com.paleblueapps.springadmin.core.AdminEntityRegistry
 import com.paleblueapps.springadmin.core.PaginationInfo
 import jakarta.persistence.ManyToMany
@@ -11,9 +12,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.servlet.mvc.support.RedirectAttributes
 import org.springframework.web.server.ResponseStatusException
 
 @Controller
@@ -29,7 +33,7 @@ class AdminEntityController(
     private fun computePageSize(requested: Int): Int =
         if (requested <= 0) props.pagination.defaultSize else requested.coerceAtMost(props.pagination.maxSize)
 
-    private fun extractAttributeTitlesForList(entityDesc: com.paleblueapps.springadmin.core.AdminEntityDescriptor): List<String> =
+    private fun extractAttributeTitlesForList(entityDesc: AdminEntityDescriptor): List<String> =
         entityDesc.attributes.map { it.name }
 
     private fun buildRows(
@@ -89,8 +93,108 @@ class AdminEntityController(
         model.addAttribute("q", q)
         model.addAttribute("size", pageSize)
         model.addAttribute("pageSizes", pageSizeOptions())
+        model.addAttribute("selectedAction", "")
 
         return "sda/entity-list"
+    }
+
+    @PostMapping("{entity}/actions")
+    fun listAction(
+        @PathVariable entity: String,
+        @RequestParam(required = false) action: String?,
+        @RequestParam(name = "selectedIds", required = false) selectedIds: List<String>?,
+        @RequestParam(defaultValue = "false") selectAllMatching: Boolean,
+        @RequestParam(required = false) sort: String?,
+        @RequestParam(required = false) dir: String?,
+        @RequestParam(required = false) q: String?,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val ids = resolveSelectedIds(entity, selectedIds, selectAllMatching, sort, dir, q)
+
+        if (action.isNullOrBlank()) {
+            redirectAttributes.addFlashAttribute("error", "Please choose an action.")
+            return "redirect:${props.basePath}/${desc.entityName}"
+        }
+
+        if (ids.isEmpty()) {
+            redirectAttributes.addFlashAttribute("error", "Items must be selected in order to perform actions on them. No items have been changed.")
+            return "redirect:${props.basePath}/${desc.entityName}"
+        }
+
+        return when (action) {
+            "delete" -> {
+                redirectAttributes.addFlashAttribute("selectedIds", ids)
+                "redirect:${props.basePath}/${desc.entityName}/delete"
+            }
+
+            else -> {
+                redirectAttributes.addFlashAttribute("error", "Unknown action: $action")
+                "redirect:${props.basePath}/${desc.entityName}"
+            }
+        }
+    }
+
+    @GetMapping("{entity}/delete")
+    fun bulkDeleteConfirmation(
+        @PathVariable entity: String,
+        @ModelAttribute("selectedIds") selectedIds: List<String>?,
+        model: Model,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val ids = selectedIds?.map(String::trim)?.filter(String::isNotEmpty)?.distinct().orEmpty()
+        if (ids.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No items selected for deletion")
+        }
+
+        val objects = ids.mapNotNull { id ->
+            crud.findById(entity, id)?.let { found ->
+                mapOf(
+                    "id" to id,
+                    "label" to found.toString(),
+                )
+            }
+        }
+
+        if (objects.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND)
+        }
+
+        addCommonUiContext(model)
+        model.addAttribute("descriptor", desc)
+        model.addAttribute("selectedIds", objects.map { it["id"] })
+        model.addAttribute("deleteObjects", objects)
+
+        return "sda/entity-delete-bulk"
+    }
+
+    @PostMapping("{entity}/delete")
+    fun bulkDelete(
+        @PathVariable entity: String,
+        @RequestParam(name = "selectedIds", required = false) selectedIds: List<String>?,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val ids = selectedIds?.map(String::trim)?.filter(String::isNotEmpty)?.distinct().orEmpty()
+
+        if (ids.isEmpty()) {
+            redirectAttributes.addFlashAttribute("error", "Items must be selected in order to perform actions on them. No items have been changed.")
+            return "redirect:${props.basePath}/${desc.entityName}"
+        }
+
+        return try {
+            val deletedCount = crud.deleteAllByIds(entity, ids)
+            val missingCount = ids.size - deletedCount
+            redirectAttributes.addFlashAttribute("message", buildBulkDeleteMessage(desc.displayName, deletedCount, missingCount))
+            "redirect:${props.basePath}/${desc.entityName}"
+        } catch (ex: Exception) {
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Could not delete the selected ${desc.displayName.lowercase()} records. Remove related records first and try again.",
+            )
+            redirectAttributes.addFlashAttribute("selectedIds", ids)
+            "redirect:${props.basePath}/${desc.entityName}/delete"
+        }
     }
 
     @GetMapping("{entity}/{id}")
@@ -114,6 +218,48 @@ class AdminEntityController(
         model.addAttribute("id", id)
 
         return "sda/entity-detail"
+    }
+
+    @GetMapping("{entity}/{id}/delete")
+    fun deleteConfirmation(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        model: Model,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val found = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+
+        addCommonUiContext(model)
+        model.addAttribute("descriptor", desc)
+        model.addAttribute("id", id)
+        model.addAttribute("deleteObjectLabel", found.toString())
+
+        return "sda/entity-delete"
+    }
+
+    @PostMapping("{entity}/{id}/delete")
+    fun delete(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+
+        return try {
+            val deleted = crud.deleteById(entity, id)
+            if (deleted) {
+                redirectAttributes.addFlashAttribute("message", "The ${desc.displayName} \"$id\" was deleted successfully.")
+            } else {
+                redirectAttributes.addFlashAttribute("error", "The ${desc.displayName} \"$id\" no longer exists.")
+            }
+            "redirect:${props.basePath}/${desc.entityName}"
+        } catch (ex: Exception) {
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Could not delete ${desc.displayName} \"$id\". Remove related records first and try again.",
+            )
+            "redirect:${props.basePath}/${desc.entityName}/$id/delete"
+        }
     }
 
     private fun buildDetailRows(
@@ -231,6 +377,39 @@ class AdminEntityController(
             }
         return collectionTables
     }
+
+    private fun buildBulkDeleteMessage(
+        displayName: String,
+        deletedCount: Int,
+        missingCount: Int,
+    ): String {
+        val deletedPart =
+            when (deletedCount) {
+                0 -> "No ${displayName.lowercase()} records were deleted"
+                1 -> "Successfully deleted 1 $displayName"
+                else -> "Successfully deleted $deletedCount ${displayName.lowercase()} records"
+            }
+
+        return if (missingCount > 0) {
+            "$deletedPart. $missingCount selected record(s) no longer existed."
+        } else {
+            "$deletedPart."
+        }
+    }
+
+    private fun resolveSelectedIds(
+        entity: String,
+        selectedIds: List<String>?,
+        selectAllMatching: Boolean,
+        sort: String?,
+        dir: String?,
+        q: String?,
+    ): List<String> =
+        if (selectAllMatching) {
+            crud.listIds(entity, sort, dir, q)
+        } else {
+            selectedIds?.map(String::trim)?.filter(String::isNotEmpty).orEmpty()
+        }
 
     // Paginated and searchable view for collection relations from an entity detail page
     @GetMapping("{entity}/{id}/rel/{rel}")

@@ -6,7 +6,9 @@ import jakarta.persistence.Query
 import jakarta.persistence.metamodel.Attribute
 import java.lang.reflect.AnnotatedElement
 import java.util.UUID
+import org.springframework.transaction.annotation.Transactional
 
+@Transactional(readOnly = true)
 class AdminCrudService(
     private val entityManager: EntityManager,
     private val registry: AdminEntityRegistry,
@@ -70,15 +72,63 @@ class AdminCrudService(
         return entityManager.find(desc.javaType, id)
     }
 
+    fun listIds(
+        entityKey: String,
+        sort: String? = null,
+        dir: String? = null,
+        q: String? = null,
+    ): List<String> {
+        val desc = findDescriptorOrThrow(entityKey)
+        val safeSort = normalizeSort(desc, sort)
+        val orderClause = buildOrderClause(safeSort, dir)
+        val search = buildSearchParts(desc, q)
+
+        val queryString =
+            buildString {
+                append("select distinct x.")
+                append(desc.idAttribute)
+                append(" from ")
+                append(desc.jpaName)
+                append(" x")
+                append(search.joinClause)
+                append(search.whereClause)
+                append(orderClause)
+            }
+
+        val query = entityManager.createQuery(queryString)
+        query.applySearchParam(q = q, whereClause = search.whereClause)
+        return query.resultList.mapNotNull { it?.toString() }
+    }
+
+    @Transactional
     fun deleteById(
         entityKey: String,
         idValue: String,
-    ) {
-        val entity = findById(entityKey, idValue) ?: return
-        val managed = if (entityManager.contains(entity)) entity else entityManager.merge(entity)
-        entityManager.remove(managed)
+    ): Boolean = deleteAllByIds(entityKey, listOf(idValue)) > 0
+
+    @Transactional
+    fun deleteAllByIds(
+        entityKey: String,
+        idValues: List<String>,
+    ): Int {
+        val uniqueIds = idValues.map(String::trim).filter(String::isNotEmpty).distinct()
+        var deletedCount = 0
+
+        uniqueIds.forEach { idValue ->
+            val entity = findById(entityKey, idValue) ?: return@forEach
+            val managed = if (entityManager.contains(entity)) entity else entityManager.merge(entity)
+            entityManager.remove(managed)
+            deletedCount++
+        }
+
+        if (deletedCount > 0) {
+            entityManager.flush()
+        }
+
+        return deletedCount
     }
 
+    @Transactional
     fun save(entity: Any): Any = entityManager.merge(entity)
 
     fun getId(entity: Any): Any? = entityManager.entityManagerFactory.persistenceUnitUtil.getIdentifier(entity)

@@ -51,9 +51,11 @@
                                th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + '&sort=' + attribute + '&dir=' + ((sort == attribute and dir == 'asc') ? 'desc' : 'asc') + (q != null ? '&q=' + q : '')}"
                                th:text="${attribute}"></a>
                             <a th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + (q != null ? '&q=' + q : '')}"
-                               th:if="${sort == attribute}" class="text-gray-400"
-                               th:text="${dir == 'desc' ? '▼' : '▲'}">▲</a>
+                                th:if="${sort == attribute}" class="text-gray-400"
+                                th:text="${dir == 'desc' ? '▼' : '▲'}">▲</a>
                         </th>
+                        <th scope="col"
+                            class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
@@ -63,6 +65,14 @@
                         tabindex="0" role="link">
                         <td class="px-4 py-2 text-sm leading-tight text-gray-700 align-middle overflow-hidden" th:each="data, dStat : ${row}">
                             <span class="block truncate max-w-60" th:text="${data}">cell</span>
+                        </td>
+                        <td class="px-4 py-2 text-sm text-right whitespace-nowrap" data-no-row-nav>
+                            <div class="inline-flex items-center gap-3">
+                                <a th:href="${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index]}"
+                                   class="text-blue-600 hover:underline">View</a>
+                                <a th:href="${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index] + '/delete'}"
+                                   class="text-red-600 hover:underline">Delete</a>
+                            </div>
                         </td>
                     </tr>
                     </tbody>

@@ -14,6 +14,8 @@
     <div class="bg-white rounded-lg shadow border border-gray-200">
         <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <div class="font-semibold">Details</div>
+            <a th:href="${basePath + '/' + descriptor.entityName + '/' + id + '/delete'}"
+               class="inline-flex items-center rounded border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100">Delete</a>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
