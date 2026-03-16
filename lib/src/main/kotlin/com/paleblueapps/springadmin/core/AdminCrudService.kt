@@ -4,8 +4,15 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.Lob
 import jakarta.persistence.Query
 import jakarta.persistence.metamodel.Attribute
+import java.math.BigDecimal
 import java.lang.reflect.AnnotatedElement
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.util.UUID
+import kotlin.reflect.KClass
+import kotlin.reflect.KParameter
+import kotlin.reflect.full.primaryConstructor
 import org.springframework.transaction.annotation.Transactional
 
 @Transactional(readOnly = true)
@@ -100,6 +107,16 @@ class AdminCrudService(
         return query.resultList.mapNotNull { it?.toString() }
     }
 
+    fun listAll(entityKey: String): List<Any> {
+        val desc = findDescriptorOrThrow(entityKey)
+
+        @Suppress("UNCHECKED_CAST")
+        return entityManager.createQuery(
+            "select x from ${desc.jpaName} x order by x.${desc.idAttribute} asc",
+            desc.javaType as Class<Any>,
+        ).resultList
+    }
+
     @Transactional
     fun deleteById(
         entityKey: String,
@@ -130,6 +147,39 @@ class AdminCrudService(
 
     @Transactional
     fun save(entity: Any): Any = entityManager.merge(entity)
+
+    @Transactional
+    fun update(
+        entityKey: String,
+        idValue: String,
+        values: Map<String, String>,
+    ): Any {
+        val desc = findDescriptorOrThrow(entityKey)
+        val existing = findById(entityKey, idValue) ?: throw IllegalArgumentException("${desc.displayName} \"$idValue\" does not exist.")
+        val constructor =
+            desc.javaType.kotlin.primaryConstructor
+                ?: throw IllegalStateException("${desc.displayName} must declare a primary constructor to support editing.")
+
+        val attributesByName = desc.detailAttributes.associateBy { it.name }
+        val args = mutableMapOf<KParameter, Any?>()
+
+        constructor.parameters.forEach { parameter ->
+            val name = parameter.name ?: return@forEach
+            val currentValue = readFieldValue(existing, name)
+            val attribute = attributesByName[name]
+
+            args[parameter] =
+                when {
+                    name == desc.idAttribute -> currentValue
+                    attribute == null -> currentValue
+                    isAssociation(attribute) -> resolveAssociationValue(attribute, values[name], parameter.isOptional, parameter.type.isMarkedNullable)
+                    else -> convertSimpleValue(attribute, values[name], parameter.type.isMarkedNullable)
+                }
+        }
+
+        val updated = constructor.callBy(args)
+        return entityManager.merge(updated)
+    }
 
     fun getId(entity: Any): Any? = entityManager.entityManagerFactory.persistenceUnitUtil.getIdentifier(entity)
 
@@ -218,6 +268,94 @@ class AdminCrudService(
         val annotated = attr.javaMember as? AnnotatedElement
         return annotated?.getAnnotation(Lob::class.java) == null
     }
+
+    private fun isAssociation(attr: Attribute<*, *>): Boolean =
+        attr.persistentAttributeType in
+            setOf(
+                Attribute.PersistentAttributeType.MANY_TO_ONE,
+                Attribute.PersistentAttributeType.ONE_TO_ONE,
+            )
+
+    private fun resolveAssociationValue(
+        attr: Attribute<*, *>,
+        rawValue: String?,
+        isOptional: Boolean,
+        isNullable: Boolean,
+    ): Any? {
+        val normalized = rawValue?.trim().orEmpty()
+        if (normalized.isEmpty()) {
+            if (isOptional || isNullable) return null
+            throw IllegalArgumentException("${attr.name} is required.")
+        }
+
+        val targetDesc = registry.getByJavaType(attr.javaType)
+            ?: throw IllegalStateException("Unknown association target for ${attr.name}.")
+
+        return findById(targetDesc.entityName, normalized)
+            ?: throw IllegalArgumentException("${targetDesc.displayName} \"$normalized\" does not exist.")
+    }
+
+    private fun convertSimpleValue(
+        attr: Attribute<*, *>,
+        rawValue: String?,
+        isNullable: Boolean,
+    ): Any? {
+        val normalized = rawValue?.trim()
+        if (normalized.isNullOrEmpty()) {
+            if (attr.javaType == String::class.java) return rawValue ?: ""
+            if (isNullable) return null
+            throw IllegalArgumentException("${attr.name} is required.")
+        }
+
+        return try {
+            when (attr.javaType.kotlin) {
+                String::class -> rawValue ?: ""
+                Int::class -> normalized.toInt()
+                Long::class -> normalized.toLong()
+                Short::class -> normalized.toShort()
+                Byte::class -> normalized.toByte()
+                Double::class -> normalized.toDouble()
+                Float::class -> normalized.toFloat()
+                Boolean::class -> normalized.toBooleanStrict()
+                BigDecimal::class -> normalized.toBigDecimal()
+                LocalDate::class -> LocalDate.parse(normalized)
+                LocalDateTime::class -> LocalDateTime.parse(normalized)
+                OffsetDateTime::class -> OffsetDateTime.parse(normalized)
+                UUID::class -> UUID.fromString(normalized)
+                else -> {
+                    if (attr.javaType.isEnum) {
+                        enumValue(attr.javaType.kotlin, normalized)
+                    } else {
+                        rawValue
+                    }
+                }
+            }
+        } catch (ex: Exception) {
+            throw IllegalArgumentException("Invalid value for ${attr.name}: $rawValue")
+        }
+    }
+
+    private fun readFieldValue(
+        target: Any,
+        fieldName: String,
+    ): Any? =
+        try {
+            val field = target.javaClass.getDeclaredField(fieldName)
+            field.isAccessible = true
+            field.get(target)
+        } catch (_: Exception) {
+            null
+        }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun enumValue(
+        type: KClass<*>,
+        rawValue: String,
+    ): Any =
+        java.lang.Enum.valueOf(
+            type.java as Class<out Enum<*>>,
+            rawValue,
+        )
 
     private fun Query.applyPaging(
         page: Int,

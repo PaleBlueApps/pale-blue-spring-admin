@@ -25,4 +25,7 @@ data class Post(
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false, foreignKey = ForeignKey(name = "fk_posts_user"))
     val user: User
-)
+) {
+
+    override fun toString(): String = title
+}

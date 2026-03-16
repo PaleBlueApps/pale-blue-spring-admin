@@ -5,9 +5,15 @@ import com.paleblueapps.springadmin.core.AdminCrudService
 import com.paleblueapps.springadmin.core.AdminEntityDescriptor
 import com.paleblueapps.springadmin.core.AdminEntityRegistry
 import com.paleblueapps.springadmin.core.PaginationInfo
+import jakarta.persistence.Column
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.Lob
 import jakarta.persistence.ManyToMany
 import jakarta.persistence.OneToMany
 import jakarta.persistence.metamodel.Attribute
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
@@ -205,19 +211,35 @@ class AdminEntityController(
     ): String {
         val desc = getDescriptorOr404(entity)
         val found = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
-
-        val (attributes, values, links) = buildDetailRows(found, desc.detailAttributes)
         val collectionTables = buildCollectionPreviews(found)
+        val editFields = buildEditFields(found, desc)
 
         addCommonUiContext(model)
         model.addAttribute("descriptor", desc)
-        model.addAttribute("attributes", attributes)
-        model.addAttribute("values", values)
-        model.addAttribute("links", links)
+        model.addAttribute("editFields", editFields)
         model.addAttribute("collectionTables", collectionTables)
         model.addAttribute("id", id)
 
         return "sda/entity-detail"
+    }
+
+    @PostMapping("{entity}/{id}")
+    fun update(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        @RequestParam params: Map<String, String>,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+
+        return try {
+            crud.update(entity, id, params)
+            redirectAttributes.addFlashAttribute("message", "The ${desc.displayName} \"$id\" was saved successfully.")
+            "redirect:${props.basePath}/${desc.entityName}/$id"
+        } catch (ex: IllegalArgumentException) {
+            redirectAttributes.addFlashAttribute("error", ex.message ?: "Could not save ${desc.displayName} \"$id\".")
+            "redirect:${props.basePath}/${desc.entityName}/$id"
+        }
     }
 
     @GetMapping("{entity}/{id}/delete")
@@ -262,53 +284,36 @@ class AdminEntityController(
         }
     }
 
-    private fun buildDetailRows(
+    private fun buildEditFields(
         found: Any,
-        detailAttrs: List<jakarta.persistence.metamodel.Attribute<*, *>>,
-    ): Triple<List<String>, List<String?>, List<String?>> {
-        val attributes = mutableListOf<String>()
-        val values = mutableListOf<String?>()
-        val links = mutableListOf<String?>()
+        desc: AdminEntityDescriptor,
+    ): List<Map<String, Any?>> =
+        desc.detailAttributes.map { attr ->
+            val value = readFieldValue(found, attr.name)
+            val relationDesc = if (isAssociation(attr)) registry.getByJavaType(attr.javaType) else null
+            val relationOptions =
+                relationDesc?.let { related ->
+                    crud.listAll(related.entityName).map { option ->
+                        mapOf(
+                            "id" to crud.getId(option)?.toString(),
+                            "label" to option.toString(),
+                        )
+                    }
+                }.orEmpty()
 
-        detailAttrs.forEach { attr ->
-            attributes += attr.name
-            try {
-                val field = found.javaClass.getDeclaredField(attr.name)
-                field.isAccessible = true
-                val value = field.get(found)
-                if (value == null) {
-                    values += null
-                    links += null
-                } else if (
-                    attr.persistentAttributeType in
-                    setOf(
-                        Attribute.PersistentAttributeType.MANY_TO_ONE,
-                        Attribute.PersistentAttributeType.ONE_TO_ONE,
-                    )
-                ) {
-                    val targetDesc = registry.getByJavaType(value.javaClass)
-                    val idVal = crud.getId(value)
-                    val text = value.toString()
-                    val href =
-                        if (targetDesc != null && idVal != null) {
-                            props.basePath.trimEnd('/') + "/" + targetDesc.entityName + "/" + idVal
-                        } else {
-                            null
-                        }
-                    values += text
-                    links += href
-                } else {
-                    values += value.toString()
-                    links += null
-                }
-            } catch (_: Exception) {
-                values += null
-                links += null
-            }
+            mapOf(
+                "name" to attr.name,
+                "label" to humanize(attr.name),
+                "inputType" to inputTypeFor(attr),
+                "value" to formatValue(attr, value),
+                "required" to (attr.name != desc.idAttribute && isRequired(attr)),
+                "readonly" to (attr.name == desc.idAttribute),
+                "relation" to (relationDesc != null),
+                "relationOptions" to relationOptions,
+                "relationValue" to (if (relationDesc != null) value?.let { crud.getId(it)?.toString() } else null),
+                "relationEntityName" to relationDesc?.entityName,
+            )
         }
-
-        return Triple(attributes, values, links)
-    }
 
     private fun buildCollectionPreviews(found: Any): List<Map<String, Any?>> {
         val collectionTables: MutableList<Map<String, Any?>> = mutableListOf()
@@ -377,6 +382,84 @@ class AdminEntityController(
             }
         return collectionTables
     }
+
+    private fun readFieldValue(
+        target: Any,
+        fieldName: String,
+    ): Any? =
+        try {
+            val field = target.javaClass.getDeclaredField(fieldName)
+            field.isAccessible = true
+            field.get(target)
+        } catch (_: Exception) {
+            null
+        }
+
+    private fun isAssociation(attr: Attribute<*, *>): Boolean =
+        attr.persistentAttributeType in
+            setOf(
+                Attribute.PersistentAttributeType.MANY_TO_ONE,
+                Attribute.PersistentAttributeType.ONE_TO_ONE,
+            )
+
+    private fun isRequired(attr: Attribute<*, *>): Boolean {
+        val annotated = attr.javaMember as? java.lang.reflect.AnnotatedElement ?: return false
+        val column = annotated.getAnnotation(Column::class.java)
+        val joinColumn = annotated.getAnnotation(JoinColumn::class.java)
+        return when {
+            joinColumn != null -> !joinColumn.nullable
+            column != null -> !column.nullable
+            attr.javaType.isPrimitive -> true
+            else -> false
+        }
+    }
+
+    private fun inputTypeFor(attr: Attribute<*, *>): String =
+        if (isTextArea(attr)) {
+            "textarea"
+        } else {
+        when (attr.javaType) {
+            Int::class.java,
+            java.lang.Integer::class.java,
+            Long::class.java,
+            java.lang.Long::class.java,
+            Short::class.java,
+            java.lang.Short::class.java,
+            Double::class.java,
+            java.lang.Double::class.java,
+            Float::class.java,
+            java.lang.Float::class.java,
+            -> "number"
+            LocalDate::class.java -> "date"
+            LocalDateTime::class.java, OffsetDateTime::class.java -> "datetime-local"
+            java.lang.Boolean::class.java, Boolean::class.java -> "checkbox"
+            else -> "text"
+        }
+        }
+
+    private fun formatValue(
+        attr: Attribute<*, *>,
+        value: Any?,
+    ): String? =
+        when (value) {
+            null -> null
+            is LocalDate -> value.toString()
+            is LocalDateTime -> value.toString().substringBeforeLast(":")
+            is OffsetDateTime -> value.toLocalDateTime().toString().substringBeforeLast(":")
+            is Boolean -> value.toString()
+            else -> if (isAssociation(attr)) null else value.toString()
+        }
+
+    private fun isTextArea(attr: Attribute<*, *>): Boolean {
+        val annotated = attr.javaMember as? java.lang.reflect.AnnotatedElement ?: return false
+        val column = annotated.getAnnotation(Column::class.java)
+        return annotated.getAnnotation(Lob::class.java) != null || column?.columnDefinition?.contains("TEXT", ignoreCase = true) == true
+    }
+
+    private fun humanize(name: String): String =
+        name.replace(Regex("([a-z])([A-Z])"), "$1 $2")
+            .replace('_', ' ')
+            .replaceFirstChar { it.uppercase() }
 
     private fun buildBulkDeleteMessage(
         displayName: String,
