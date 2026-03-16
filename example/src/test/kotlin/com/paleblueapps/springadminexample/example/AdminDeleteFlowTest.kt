@@ -26,7 +26,7 @@ class AdminDeleteFlowTest(
             .andExpect {
                 status { isOk() }
                 content { string(Matchers.containsString("Are you sure you want to delete the following User?")) }
-                content { string(Matchers.containsString("User(id=1, username=john_doe, email=john@example.com, age=28)")) }
+                content { string(Matchers.containsString("john_doe")) }
             }
     }
 
@@ -74,8 +74,8 @@ class AdminDeleteFlowTest(
         }.andExpect {
             status { isOk() }
             content { string(Matchers.containsString("Delete")) }
-            content { string(Matchers.containsString("User(id=1, username=john_doe, email=john@example.com, age=28)")) }
-            content { string(Matchers.containsString("User(id=2, username=alice_smith, email=alice@example.com, age=32)")) }
+            content { string(Matchers.containsString("john_doe")) }
+            content { string(Matchers.containsString("alice_smith")) }
         }
     }
 

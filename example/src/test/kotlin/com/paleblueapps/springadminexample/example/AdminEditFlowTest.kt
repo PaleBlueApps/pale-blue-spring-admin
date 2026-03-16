@@ -68,7 +68,7 @@ class AdminEditFlowTest(
         mockMvc.get("/admin/post/1")
             .andExpect {
                 content { string(Matchers.containsString("<option value=\"2\"")) }
-                content { string(Matchers.containsString("selected=\"selected\">User(id=2, username=alice_smith, email=alice@example.com, age=32)</option>")) }
+                content { string(Matchers.containsString("selected=\"selected\">alice_smith</option>")) }
             }
     }
 

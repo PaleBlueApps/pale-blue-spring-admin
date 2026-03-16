@@ -489,9 +489,9 @@ class AdminEntityController(
         q: String?,
     ): List<String> =
         if (selectAllMatching) {
-            crud.listIds(entity, sort, dir, q)
+            crud.listIds(entity, sort, dir, q).distinct()
         } else {
-            selectedIds?.map(String::trim)?.filter(String::isNotEmpty).orEmpty()
+            selectedIds?.map(String::trim)?.filter(String::isNotEmpty)?.distinct().orEmpty()
         }
 
     // Paginated and searchable view for collection relations from an entity detail page
@@ -520,6 +520,7 @@ class AdminEntityController(
         val dataPage = paginate(sorted, page, pageSize)
         val rows = buildRows(attributeTitles, dataPage.content)
         val rowIds = buildRowIds(dataPage.content)
+        val allRowIds = buildRowIds(sorted)
 
         val listBaseUrl = props.basePath + "/" + parentDesc.entityName + "/" + id + "/rel/" + rel
         val paginationInfo = PaginationInfo.from(dataPage)
@@ -531,6 +532,7 @@ class AdminEntityController(
         model.addAttribute("attributeTitles", attributeTitles)
         model.addAttribute("rows", rows)
         model.addAttribute("rowIds", rowIds)
+        model.addAttribute("allRowIds", allRowIds)
         model.addAttribute("pagination", paginationInfo)
         model.addAttribute("listBaseUrl", listBaseUrl)
         model.addAttribute("sort", sort)
