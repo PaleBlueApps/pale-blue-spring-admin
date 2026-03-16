@@ -99,5 +99,122 @@
         </div>
     </div>
 </div>
+<script>
+(function(){
+  function shouldIgnoreRowNavigation(target) {
+    return !!(target && target.closest && target.closest('a, button, input, select, textarea, label, [data-no-row-nav]'));
+  }
+
+  function syncSelectAllState() {
+    const selectAll = document.getElementById('select-all');
+    const checkboxes = Array.from(document.querySelectorAll('.row-selector'));
+    const checkedCount = checkboxes.filter(function(box) { return box.checked; }).length;
+    const pageCount = checkboxes.length;
+    const selectedCount = document.getElementById('selected-count');
+    const selectAllMatching = document.getElementById('select-all-matching');
+    const selectAllResults = document.getElementById('select-all-results');
+    const totalLabel = document.querySelector('[data-total-count]');
+    const totalCount = totalLabel ? parseInt(totalLabel.getAttribute('data-total-count') || '0', 10) : checkboxes.length;
+    const isAllMatching = selectAllMatching && selectAllMatching.value === 'true';
+    const isPageFullySelected = pageCount > 0 && checkedCount === pageCount;
+
+    if (selectedCount) {
+      const count = isAllMatching ? totalCount : checkedCount;
+      const baseCount = isAllMatching ? totalCount : pageCount;
+      selectedCount.textContent = count + ' of ' + baseCount + ' selected';
+    }
+
+    if (selectAllResults) {
+      if (isAllMatching) {
+        selectAllResults.textContent = 'Clear selection';
+        selectAllResults.classList.remove('hidden');
+      } else {
+        selectAllResults.textContent = 'Select all ' + totalCount;
+        if (isPageFullySelected && totalCount > pageCount) {
+          selectAllResults.classList.remove('hidden');
+        } else {
+          selectAllResults.classList.add('hidden');
+        }
+      }
+    }
+
+    if (!selectAll || checkboxes.length === 0) {
+      return;
+    }
+
+    selectAll.checked = checkedCount > 0 && checkedCount === checkboxes.length;
+    selectAll.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+  }
+
+  document.addEventListener('change', function(e) {
+    if (e.target && e.target.id === 'select-all') {
+      const checked = e.target.checked;
+      document.querySelectorAll('.row-selector').forEach(function(box) {
+        box.checked = checked;
+      });
+      const selectAllMatching = document.getElementById('select-all-matching');
+      if (selectAllMatching) {
+        selectAllMatching.value = 'false';
+      }
+      syncSelectAllState();
+      return;
+    }
+
+    if (e.target && e.target.classList && e.target.classList.contains('row-selector')) {
+      const selectAllMatching = document.getElementById('select-all-matching');
+      if (selectAllMatching) {
+        selectAllMatching.value = 'false';
+      }
+      syncSelectAllState();
+    }
+  }, false);
+
+  document.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'select-all-results') {
+      e.preventDefault();
+      const selectAllMatching = document.getElementById('select-all-matching');
+      const checkboxes = Array.from(document.querySelectorAll('.row-selector'));
+      const enableAll = !selectAllMatching || selectAllMatching.value !== 'true';
+
+      checkboxes.forEach(function(box) {
+        box.checked = enableAll;
+      });
+
+      if (selectAllMatching) {
+        selectAllMatching.value = enableAll ? 'true' : 'false';
+      }
+
+      const selectAll = document.getElementById('select-all');
+      if (selectAll) {
+        selectAll.checked = enableAll && checkboxes.length > 0;
+        selectAll.indeterminate = false;
+      }
+
+      syncSelectAllState();
+      return;
+    }
+
+    if (shouldIgnoreRowNavigation(e.target)) { return; }
+    const tr = e.target.closest && e.target.closest('tr[data-href]');
+    if (tr) {
+      const href = tr.getAttribute('data-href');
+      if (href) { window.location.href = href; }
+    }
+  }, false);
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' ') {
+      const el = document.activeElement;
+      if (el && el.matches && el.matches('tr[data-href]')) {
+        e.preventDefault();
+        const href = el.getAttribute('data-href');
+        if (href) { window.location.href = href; }
+      }
+    }
+  }, false);
+
+  syncSelectAllState();
+})();
+</script>
 </body>
 </html>
