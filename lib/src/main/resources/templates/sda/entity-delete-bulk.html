@@ -1,28 +1,68 @@
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
-<body>
-<div class="pb-6">
-    <h2 class="text-xl font-semibold mb-4 pt-6">
-        <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  lang="en"
+  th:replace="~{sda/base :: layout(~{::body})}"
+>
+  <body>
+    <div class="pb-6">
+      <h2 class="text-xl font-semibold mb-4 pt-6">
+        <a th:href="${basePath}" class="text-blue-600 hover:underline"
+          >Entities</a
+        >
         <span class="text-gray-400">/</span>
-        <a th:href="${basePath + '/' + descriptor.entityName}" class="text-blue-600 hover:underline"
-           th:text="${descriptor.displayName}">Entity</a>
+        <a
+          th:href="${basePath + '/' + descriptor.entityName}"
+          class="text-blue-600 hover:underline"
+          th:text="${descriptor.displayName}"
+          >Entity</a
+        >
         <span class="text-gray-400">/</span>
         <span class="text-red-700">Delete</span>
-    </h2>
+      </h2>
 
-    <p class="mb-4 text-sm text-gray-800" th:text="${'Are you sure you want to delete the selected ' + descriptor.displayName + ' objects?'}">Are you sure you want to delete the selected objects?</p>
+      <p
+        class="mb-4 text-sm text-gray-800"
+        th:text="${'Are you sure you want to delete the selected ' + descriptor.displayName + ' objects?'}"
+      >
+        Are you sure you want to delete the selected objects?
+      </p>
 
-    <ul class="mb-6 list-disc pl-6 text-sm text-gray-900 space-y-1">
-        <li th:each="object : ${deleteObjects}" th:text="${object['label']}">Object</li>
-    </ul>
+      <ul class="mb-6 list-disc pl-6 text-sm text-gray-900 space-y-1">
+        <li th:each="object : ${deleteObjects}" th:text="${object['label']}">
+          Object
+        </li>
+      </ul>
 
-    <form th:action="@{${basePath + '/' + descriptor.entityName + '/delete'}}" method="post" class="flex items-center gap-3 text-sm">
-        <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-        <input th:each="selectedId : ${selectedIds}" type="hidden" name="selectedIds" th:value="${selectedId}"/>
-        <button type="submit" class="rounded border border-red-700 bg-red-700 px-3 py-2 font-medium text-white hover:bg-red-800">Yes, I'm sure</button>
-        <a th:href="${basePath + '/' + descriptor.entityName}" class="text-blue-600 hover:underline">No, take me back</a>
-    </form>
-</div>
-</body>
+      <form
+        th:action="@{${basePath + '/' + descriptor.entityName + '/delete'}}"
+        method="post"
+        class="flex items-center gap-3 text-sm"
+      >
+        <input
+          th:if="${_csrf != null}"
+          type="hidden"
+          th:name="${_csrf.parameterName}"
+          th:value="${_csrf.token}"
+        />
+        <input
+          th:each="selectedId : ${selectedIds}"
+          type="hidden"
+          name="selectedIds"
+          th:value="${selectedId}"
+        />
+        <button
+          type="submit"
+          class="rounded border border-red-700 bg-red-700 px-3 py-2 font-medium text-white hover:bg-red-800"
+        >
+          Yes, I'm sure
+        </button>
+        <a
+          th:href="${basePath + '/' + descriptor.entityName}"
+          class="text-blue-600 hover:underline"
+          >No, take me back</a
+        >
+      </form>
+    </div>
+  </body>
 </html>
