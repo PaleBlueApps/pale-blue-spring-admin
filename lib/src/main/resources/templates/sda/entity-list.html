@@ -24,6 +24,8 @@
                     </select>
                 </div>
                 <div class="flex items-center gap-2 ml-auto">
+                    <a th:href="${basePath + '/' + descriptor.entityName + '/new'}"
+                       class="inline-flex items-center rounded border border-blue-600 bg-blue-600 px-3 py-1 text-sm font-medium text-white transition hover:bg-blue-700">New</a>
                     <input type="text" name="q" placeholder="Search" class="border rounded px-2 py-1 text-sm"
                            th:value="${q}"/>
                     <button type="submit" class="px-2 py-1 text-sm border rounded bg-gray-50 hover:bg-gray-100">Search

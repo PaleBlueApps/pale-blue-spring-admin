@@ -11,9 +11,6 @@ import jakarta.persistence.Lob
 import jakarta.persistence.ManyToMany
 import jakarta.persistence.OneToMany
 import jakarta.persistence.metamodel.Attribute
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
@@ -23,8 +20,11 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
-import org.springframework.web.servlet.mvc.support.RedirectAttributes
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.web.servlet.mvc.support.RedirectAttributes
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 
 @Controller
 @RequestMapping(path = ["\${spring.data.admin.base-path:/admin}"])
@@ -34,13 +34,14 @@ class AdminEntityController(
     private val props: AdminProperties,
 ) {
     // region: List endpoint helpers
-    private fun getDescriptorOr404(entity: String) = registry.get(entity) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+    private fun getDescriptorOr404(entity: String): AdminEntityDescriptor =
+        registry.get(entity)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
 
     private fun computePageSize(requested: Int): Int =
         if (requested <= 0) props.pagination.defaultSize else requested.coerceAtMost(props.pagination.maxSize)
 
-    private fun extractAttributeTitlesForList(entityDesc: AdminEntityDescriptor): List<String> =
-        entityDesc.attributes.map { it.name }
+    private fun extractAttributeTitlesForList(entityDesc: AdminEntityDescriptor): List<String> = entityDesc.attributes.map { it.name }
 
     private fun buildRows(
         attributeTitles: List<String>,
@@ -104,6 +105,57 @@ class AdminEntityController(
         return "sda/entity-list"
     }
 
+    @GetMapping("{entity}/new")
+    fun createForm(
+        @PathVariable entity: String,
+        model: Model,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+
+        addCommonUiContext(model)
+        addEntityFormContext(
+            model = model,
+            desc = desc,
+            editFields = buildEditFields(desc = desc, found = null, createMode = true),
+            collectionTables = emptyList(),
+            pageLabel = "New",
+            formAction = "${props.basePath}/${desc.entityName}",
+            submitLabel = "Create",
+            showDelete = false,
+            showRelations = false,
+            id = null,
+        )
+
+        return "sda/entity-detail"
+    }
+
+    @PostMapping("{entity}")
+    fun create(
+        @PathVariable entity: String,
+        @RequestParam params: Map<String, String>,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+
+        return try {
+            val created = crud.create(entity, params)
+            val createdId =
+                crud.getId(created)?.toString()
+                    ?: throw IllegalStateException("Could not determine the new ${desc.displayName} identifier.")
+            redirectAttributes.addFlashAttribute(
+                "message",
+                "The ${desc.displayName} \"$createdId\" was created successfully.",
+            )
+            "redirect:${props.basePath}/${desc.entityName}/$createdId"
+        } catch (ex: IllegalArgumentException) {
+            redirectAttributes.addFlashAttribute("error", ex.message ?: "Could not create ${desc.displayName}.")
+            "redirect:${props.basePath}/${desc.entityName}/new"
+        } catch (ex: IllegalStateException) {
+            redirectAttributes.addFlashAttribute("error", ex.message ?: "Could not create ${desc.displayName}.")
+            "redirect:${props.basePath}/${desc.entityName}/new"
+        }
+    }
+
     @PostMapping("{entity}/actions")
     fun listAction(
         @PathVariable entity: String,
@@ -124,7 +176,10 @@ class AdminEntityController(
         }
 
         if (ids.isEmpty()) {
-            redirectAttributes.addFlashAttribute("error", "Items must be selected in order to perform actions on them. No items have been changed.")
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Items must be selected in order to perform actions on them. No items have been changed.",
+            )
             return "redirect:${props.basePath}/${desc.entityName}"
         }
 
@@ -148,19 +203,25 @@ class AdminEntityController(
         model: Model,
     ): String {
         val desc = getDescriptorOr404(entity)
-        val ids = selectedIds?.map(String::trim)?.filter(String::isNotEmpty)?.distinct().orEmpty()
+        val ids =
+            selectedIds
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                .orEmpty()
         if (ids.isEmpty()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No items selected for deletion")
         }
 
-        val objects = ids.mapNotNull { id ->
-            crud.findById(entity, id)?.let { found ->
-                mapOf(
-                    "id" to id,
-                    "label" to found.toString(),
-                )
+        val objects =
+            ids.mapNotNull { id ->
+                crud.findById(entity, id)?.let { found ->
+                    mapOf(
+                        "id" to id,
+                        "label" to found.toString(),
+                    )
+                }
             }
-        }
 
         if (objects.isEmpty()) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND)
@@ -181,10 +242,18 @@ class AdminEntityController(
         redirectAttributes: RedirectAttributes,
     ): String {
         val desc = getDescriptorOr404(entity)
-        val ids = selectedIds?.map(String::trim)?.filter(String::isNotEmpty)?.distinct().orEmpty()
+        val ids =
+            selectedIds
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                .orEmpty()
 
         if (ids.isEmpty()) {
-            redirectAttributes.addFlashAttribute("error", "Items must be selected in order to perform actions on them. No items have been changed.")
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Items must be selected in order to perform actions on them. No items have been changed.",
+            )
             return "redirect:${props.basePath}/${desc.entityName}"
         }
 
@@ -212,13 +281,21 @@ class AdminEntityController(
         val desc = getDescriptorOr404(entity)
         val found = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
         val collectionTables = buildCollectionPreviews(found)
-        val editFields = buildEditFields(found, desc)
+        val editFields = buildEditFields(desc = desc, found = found, createMode = false)
 
         addCommonUiContext(model)
-        model.addAttribute("descriptor", desc)
-        model.addAttribute("editFields", editFields)
-        model.addAttribute("collectionTables", collectionTables)
-        model.addAttribute("id", id)
+        addEntityFormContext(
+            model = model,
+            desc = desc,
+            editFields = editFields,
+            collectionTables = collectionTables,
+            pageLabel = id,
+            formAction = "${props.basePath}/${desc.entityName}/$id",
+            submitLabel = "Save",
+            showDelete = true,
+            showRelations = true,
+            id = id,
+        )
 
         return "sda/entity-detail"
     }
@@ -285,34 +362,81 @@ class AdminEntityController(
     }
 
     private fun buildEditFields(
-        found: Any,
         desc: AdminEntityDescriptor,
+        found: Any?,
+        createMode: Boolean,
     ): List<Map<String, Any?>> =
-        desc.detailAttributes.map { attr ->
-            val value = readFieldValue(found, attr.name)
-            val relationDesc = if (isAssociation(attr)) registry.getByJavaType(attr.javaType) else null
-            val relationOptions =
-                relationDesc?.let { related ->
-                    crud.listAll(related.entityName).map { option ->
-                        mapOf(
-                            "id" to crud.getId(option)?.toString(),
-                            "label" to option.toString(),
-                        )
-                    }
-                }.orEmpty()
+        desc.detailAttributes
+            .filterNot { createMode && desc.idGenerated && it.name == desc.idAttribute }
+            .map { attr ->
+                val value = found?.let { readFieldValue(it, attr.name) }
+                val relationDesc = if (isAssociation(attr)) registry.getByJavaType(attr.javaType) else null
+                val relationOptions =
+                    relationDesc
+                        ?.let { related ->
+                            crud.listAll(related.entityName).map { option ->
+                                mapOf(
+                                    "id" to crud.getId(option)?.toString(),
+                                    "label" to option.toString(),
+                                )
+                            }
+                        } ?: emptyList()
 
-            mapOf(
-                "name" to attr.name,
-                "label" to humanize(attr.name),
-                "inputType" to inputTypeFor(attr),
-                "value" to formatValue(attr, value),
-                "required" to (attr.name != desc.idAttribute && isRequired(attr)),
-                "readonly" to (attr.name == desc.idAttribute),
-                "relation" to (relationDesc != null),
-                "relationOptions" to relationOptions,
-                "relationValue" to (if (relationDesc != null) value?.let { crud.getId(it)?.toString() } else null),
-                "relationEntityName" to relationDesc?.entityName,
-            )
+                mapOf(
+                    "name" to attr.name,
+                    "label" to humanize(attr.name),
+                    "inputType" to inputTypeFor(attr),
+                    "value" to formatValue(attr, value),
+                    "required" to isFieldRequired(attr, desc, createMode),
+                    "readonly" to (!createMode && attr.name == desc.idAttribute),
+                    "relation" to (relationDesc != null),
+                    "relationOptions" to relationOptions,
+                    "relationValue" to relationValue(relationDesc, value),
+                    "relationEntityName" to relationDesc?.entityName,
+                )
+            }
+
+    private fun addEntityFormContext(
+        model: Model,
+        desc: AdminEntityDescriptor,
+        editFields: List<Map<String, Any?>>,
+        collectionTables: List<Map<String, Any?>>,
+        pageLabel: String,
+        formAction: String,
+        submitLabel: String,
+        showDelete: Boolean,
+        showRelations: Boolean,
+        id: String?,
+    ) {
+        model.addAttribute("descriptor", desc)
+        model.addAttribute("editFields", editFields)
+        model.addAttribute("collectionTables", collectionTables)
+        model.addAttribute("pageLabel", pageLabel)
+        model.addAttribute("formAction", formAction)
+        model.addAttribute("submitLabel", submitLabel)
+        model.addAttribute("showDelete", showDelete)
+        model.addAttribute("showRelations", showRelations)
+        model.addAttribute("id", id)
+    }
+
+    private fun relationValue(
+        relationDesc: AdminEntityDescriptor?,
+        value: Any?,
+    ): String? =
+        if (relationDesc != null) {
+            value?.let { crud.getId(it)?.toString() }
+        } else {
+            null
+        }
+
+    private fun isFieldRequired(
+        attr: Attribute<*, *>,
+        desc: AdminEntityDescriptor,
+        createMode: Boolean,
+    ): Boolean =
+        when {
+            attr.name == desc.idAttribute -> createMode && !desc.idGenerated
+            else -> isRequired(attr)
         }
 
     private fun buildCollectionPreviews(found: Any): List<Map<String, Any?>> {
@@ -418,23 +542,23 @@ class AdminEntityController(
         if (isTextArea(attr)) {
             "textarea"
         } else {
-        when (attr.javaType) {
-            Int::class.java,
-            java.lang.Integer::class.java,
-            Long::class.java,
-            java.lang.Long::class.java,
-            Short::class.java,
-            java.lang.Short::class.java,
-            Double::class.java,
-            java.lang.Double::class.java,
-            Float::class.java,
-            java.lang.Float::class.java,
-            -> "number"
-            LocalDate::class.java -> "date"
-            LocalDateTime::class.java, OffsetDateTime::class.java -> "datetime-local"
-            java.lang.Boolean::class.java, Boolean::class.java -> "checkbox"
-            else -> "text"
-        }
+            when (attr.javaType) {
+                Int::class.java,
+                java.lang.Integer::class.java,
+                Long::class.java,
+                java.lang.Long::class.java,
+                Short::class.java,
+                java.lang.Short::class.java,
+                Double::class.java,
+                java.lang.Double::class.java,
+                Float::class.java,
+                java.lang.Float::class.java,
+                -> "number"
+                LocalDate::class.java -> "date"
+                LocalDateTime::class.java, OffsetDateTime::class.java -> "datetime-local"
+                java.lang.Boolean::class.java, Boolean::class.java -> "checkbox"
+                else -> "text"
+            }
         }
 
     private fun formatValue(
@@ -453,11 +577,15 @@ class AdminEntityController(
     private fun isTextArea(attr: Attribute<*, *>): Boolean {
         val annotated = attr.javaMember as? java.lang.reflect.AnnotatedElement ?: return false
         val column = annotated.getAnnotation(Column::class.java)
-        return annotated.getAnnotation(Lob::class.java) != null || column?.columnDefinition?.contains("TEXT", ignoreCase = true) == true
+        return annotated.getAnnotation(Lob::class.java) != null ||
+            column
+                ?.columnDefinition
+                ?.contains("TEXT", ignoreCase = true) == true
     }
 
     private fun humanize(name: String): String =
-        name.replace(Regex("([a-z])([A-Z])"), "$1 $2")
+        name
+            .replace(Regex("([a-z])([A-Z])"), "$1 $2")
             .replace('_', ' ')
             .replaceFirstChar { it.uppercase() }
 
@@ -491,7 +619,11 @@ class AdminEntityController(
         if (selectAllMatching) {
             crud.listIds(entity, sort, dir, q).distinct()
         } else {
-            selectedIds?.map(String::trim)?.filter(String::isNotEmpty)?.distinct().orEmpty()
+            selectedIds
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                .orEmpty()
         }
 
     // Paginated and searchable view for collection relations from an entity detail page

@@ -1,7 +1,7 @@
 package com.paleblueapps.springadminexample.example
 
-import org.hamcrest.Matchers
 import java.nio.file.Files
+import org.hamcrest.Matchers
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -29,6 +29,50 @@ class AdminEditFlowTest(
                 content { string(Matchers.containsString("value=\"john_doe\"")) }
                 content { string(Matchers.containsString("value=\"john@example.com\"")) }
             }
+    }
+
+    @Test
+    fun `create page renders shared form with create action and hidden generated id`() {
+        mockMvc.get("/admin/user/new")
+            .andExpect {
+                status { isOk() }
+                content { string(Matchers.containsString("<form id=\"entity-edit-form\" action=\"/admin/user\" method=\"post\">")) }
+                content { string(Matchers.containsString(">Create<")) }
+                content { string(Matchers.not(Matchers.containsString("name=\"id\""))) }
+                content { string(Matchers.not(Matchers.containsString(">Delete<"))) }
+            }
+    }
+
+    @Test
+    fun `create persists new entity and redirects to detail page`() {
+        mockMvc.post("/admin/user") {
+            param("username", "new_user")
+            param("email", "new.user@example.com")
+            param("age", "45")
+        }.andExpect {
+            status { is3xxRedirection() }
+            redirectedUrlPattern("/admin/user/*")
+            flash { attribute("message", Matchers.containsString("was created successfully.")) }
+        }
+
+        mockMvc.get("/admin/user")
+            .andExpect {
+                content { string(Matchers.containsString("new_user")) }
+                content { string(Matchers.containsString("new.user@example.com")) }
+            }
+    }
+
+    @Test
+    fun `create rejects invalid values and shows error`() {
+        mockMvc.post("/admin/user") {
+            param("username", "invalid_user")
+            param("email", "invalid.user@example.com")
+            param("age", "not-a-number")
+        }.andExpect {
+            status { is3xxRedirection() }
+            redirectedUrl("/admin/user/new")
+            flash { attribute("error", "Invalid value for age: not-a-number") }
+        }
     }
 
     @Test
@@ -70,6 +114,18 @@ class AdminEditFlowTest(
                 content { string(Matchers.containsString("<option value=\"2\"")) }
                 content { string(Matchers.containsString("selected=\"selected\">alice_smith</option>")) }
             }
+    }
+
+    @Test
+    fun `create rejects missing required relation and shows error`() {
+        mockMvc.post("/admin/post") {
+            param("title", "Missing author")
+            param("content", "Post without relation")
+        }.andExpect {
+            status { is3xxRedirection() }
+            redirectedUrl("/admin/post/new")
+            flash { attribute("error", "user is required.") }
+        }
     }
 
     @Test

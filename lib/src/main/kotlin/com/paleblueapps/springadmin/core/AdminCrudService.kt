@@ -4,16 +4,17 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.Lob
 import jakarta.persistence.Query
 import jakarta.persistence.metamodel.Attribute
-import java.math.BigDecimal
+import org.springframework.transaction.annotation.Transactional
 import java.lang.reflect.AnnotatedElement
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.util.UUID
 import kotlin.reflect.KClass
+import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.primaryConstructor
-import org.springframework.transaction.annotation.Transactional
 
 @Transactional(readOnly = true)
 class AdminCrudService(
@@ -111,10 +112,11 @@ class AdminCrudService(
         val desc = findDescriptorOrThrow(entityKey)
 
         @Suppress("UNCHECKED_CAST")
-        return entityManager.createQuery(
-            "select x from ${desc.jpaName} x order by x.${desc.idAttribute} asc",
-            desc.javaType as Class<Any>,
-        ).resultList
+        return entityManager
+            .createQuery(
+                "select x from ${desc.jpaName} x order by x.${desc.idAttribute} asc",
+                desc.javaType as Class<Any>,
+            ).resultList
     }
 
     @Transactional
@@ -149,6 +151,22 @@ class AdminCrudService(
     fun save(entity: Any): Any = entityManager.merge(entity)
 
     @Transactional
+    fun create(
+        entityKey: String,
+        values: Map<String, String>,
+    ): Any {
+        val desc = findDescriptorOrThrow(entityKey)
+        val constructor =
+            desc.javaType.kotlin.primaryConstructor
+                ?: throw IllegalStateException("${desc.displayName} must declare a primary constructor to support creation.")
+
+        val created = constructor.callBy(buildConstructorArgs(desc, constructor, values))
+        val saved = entityManager.merge(created)
+        entityManager.flush()
+        return saved
+    }
+
+    @Transactional
     fun update(
         entityKey: String,
         idValue: String,
@@ -160,22 +178,7 @@ class AdminCrudService(
             desc.javaType.kotlin.primaryConstructor
                 ?: throw IllegalStateException("${desc.displayName} must declare a primary constructor to support editing.")
 
-        val attributesByName = desc.detailAttributes.associateBy { it.name }
-        val args = mutableMapOf<KParameter, Any?>()
-
-        constructor.parameters.forEach { parameter ->
-            val name = parameter.name ?: return@forEach
-            val currentValue = readFieldValue(existing, name)
-            val attribute = attributesByName[name]
-
-            args[parameter] =
-                when {
-                    name == desc.idAttribute -> currentValue
-                    attribute == null -> currentValue
-                    isAssociation(attribute) -> resolveAssociationValue(attribute, values[name], parameter.isOptional, parameter.type.isMarkedNullable)
-                    else -> convertSimpleValue(attribute, values[name], parameter.type.isMarkedNullable)
-                }
-        }
+        val args = buildConstructorArgs(desc, constructor, values, existing)
 
         val updated = constructor.callBy(args)
         return entityManager.merge(updated)
@@ -185,6 +188,59 @@ class AdminCrudService(
 
     private fun findDescriptorOrThrow(entityKey: String): AdminEntityDescriptor =
         registry.get(entityKey) ?: throw IllegalArgumentException("Unknown entity: $entityKey")
+
+    private fun buildConstructorArgs(
+        desc: AdminEntityDescriptor,
+        constructor: KFunction<Any>,
+        values: Map<String, String>,
+        existing: Any? = null,
+    ): Map<KParameter, Any?> {
+        val attributesByName = desc.detailAttributes.associateBy { it.name }
+        val args = mutableMapOf<KParameter, Any?>()
+
+        constructor.parameters.forEach { parameter ->
+            val name = parameter.name ?: return@forEach
+            val attribute = attributesByName[name]
+            val currentValue = existing?.let { readFieldValue(it, name) }
+
+            when {
+                existing != null && name == desc.idAttribute -> args[parameter] = currentValue
+                existing == null && name == desc.idAttribute && desc.idGenerated -> Unit
+                attribute == null -> {
+                    when {
+                        existing != null -> args[parameter] = currentValue
+                        !parameter.isOptional && !parameter.type.isMarkedNullable -> {
+                            throw IllegalStateException(
+                                "${desc.displayName} cannot be created because $name is not exposed in the admin form.",
+                            )
+                        }
+                    }
+                }
+
+                existing == null && name != desc.idAttribute && shouldUseConstructorDefault(parameter, values[name]) -> Unit
+                isAssociation(attribute) -> {
+                    val resolved = resolveAssociationValue(attribute, values[name], parameter.isOptional, parameter.type.isMarkedNullable)
+                    if (existing != null || resolved != null || !parameter.isOptional) {
+                        args[parameter] = resolved
+                    }
+                }
+
+                else -> {
+                    val converted = convertSimpleValue(attribute, values[name], parameter.type.isMarkedNullable)
+                    if (existing != null || converted != null || !parameter.isOptional) {
+                        args[parameter] = converted
+                    }
+                }
+            }
+        }
+
+        return args
+    }
+
+    private fun shouldUseConstructorDefault(
+        parameter: KParameter,
+        rawValue: String?,
+    ): Boolean = parameter.isOptional && rawValue?.trim().isNullOrEmpty()
 
     private fun normalizeSort(
         desc: AdminEntityDescriptor,
@@ -288,8 +344,10 @@ class AdminCrudService(
             throw IllegalArgumentException("${attr.name} is required.")
         }
 
-        val targetDesc = registry.getByJavaType(attr.javaType)
-            ?: throw IllegalStateException("Unknown association target for ${attr.name}.")
+        val targetDesc =
+            registry
+                .getByJavaType(attr.javaType)
+                ?: throw IllegalStateException("Unknown association target for ${attr.name}.")
 
         return findById(targetDesc.entityName, normalized)
             ?: throw IllegalArgumentException("${targetDesc.displayName} \"$normalized\" does not exist.")

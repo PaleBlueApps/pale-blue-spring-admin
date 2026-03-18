@@ -8,10 +8,10 @@
         <a th:href="${basePath + '/' + descriptor.entityName}" class="text-blue-600 hover:underline"
            th:text="${descriptor.displayName}">Entity</a>
         <span class="text-gray-400">/</span>
-        <span class="text-gray-900" th:text="${id}">id</span>
+        <span class="text-gray-900" th:text="${pageLabel}">id</span>
     </h2>
 
-    <form id="entity-edit-form" th:action="@{${basePath + '/' + descriptor.entityName + '/' + id}}" method="post">
+    <form id="entity-edit-form" th:action="@{${formAction}}" method="post">
         <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
         <div class="overflow-x-auto border-y border-gray-200 bg-transparent">
             <table class="min-w-full divide-y divide-gray-200">
@@ -73,14 +73,16 @@
 
         <div class="mt-4 flex items-center gap-3">
             <button type="submit"
-                    class="inline-flex items-center rounded border border-blue-600 bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700">Save</button>
-            <a th:href="${basePath + '/' + descriptor.entityName + '/' + id + '/delete'}"
+                    class="inline-flex items-center rounded border border-blue-600 bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                    th:text="${submitLabel}">Save</button>
+            <a th:if="${showDelete}"
+               th:href="${basePath + '/' + descriptor.entityName + '/' + id + '/delete'}"
                class="inline-flex items-center rounded border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100">Delete</a>
         </div>
     </form>
 
     <!-- Relations: collection associations as tables -->
-    <div class="space-y-6 mt-6" th:if="${collectionTables != null}">
+    <div class="space-y-6 mt-6" th:if="${showRelations and collectionTables != null}">
         <div class="bg-white rounded-lg shadow border border-gray-200" th:each="rel : ${collectionTables}">
             <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                 <div class="font-semibold">
