@@ -49,3 +49,7 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+tasks.bootRun {
+    workingDir = project.rootDir
+}
