@@ -15,17 +15,13 @@ import jakarta.persistence.Table
 data class Post(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Int? = null,
-
     @Column(nullable = false)
     val title: String,
-
     @Column(columnDefinition = "TEXT")
     val content: String,
-
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false, foreignKey = ForeignKey(name = "fk_posts_user"))
-    val user: User
+    val user: User,
 ) {
-
     override fun toString(): String = title
 }

@@ -1,7 +1,6 @@
 package com.paleblueapps.springadminexample.example
 
 import org.hamcrest.Matchers
-import java.nio.file.Files
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -12,6 +11,7 @@ import org.springframework.test.context.jdbc.Sql
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import java.nio.file.Files
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -21,7 +21,8 @@ class AdminRelationListFlowTest(
 ) {
     @Test
     fun `relation list renders bulk action controls`() {
-        mockMvc.get("/admin/user/1/rel/posts")
+        mockMvc
+            .get("/admin/user/1/rel/posts")
             .andExpect {
                 status { isOk() }
                 content { string(Matchers.containsString("name=\"action\"")) }
@@ -32,14 +33,15 @@ class AdminRelationListFlowTest(
 
     @Test
     fun `relation list selected items can flow to existing delete confirmation`() {
-        mockMvc.post("/admin/post/actions") {
-            param("action", "delete")
-            param("selectedIds", "1", "2")
-        }.andExpect {
-            status { is3xxRedirection() }
-            redirectedUrl("/admin/post/delete")
-            flash { attribute("selectedIds", listOf("1", "2")) }
-        }
+        mockMvc
+            .post("/admin/post/actions") {
+                param("action", "delete")
+                param("selectedIds", "1", "2")
+            }.andExpect {
+                status { is3xxRedirection() }
+                redirectedUrl("/admin/post/delete")
+                flash { attribute("selectedIds", listOf("1", "2")) }
+            }
     }
 
     companion object {

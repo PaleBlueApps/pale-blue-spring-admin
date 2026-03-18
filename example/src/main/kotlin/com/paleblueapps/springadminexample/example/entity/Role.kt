@@ -12,7 +12,6 @@ import jakarta.persistence.Table
 data class Role(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Int? = null,
-
     @Column(nullable = false, unique = true)
     val name: String,
 )
