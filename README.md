@@ -103,13 +103,7 @@ It showcases how Spring Admin can represent complex database relationships in a 
 
 ### Run via IntelliJ IDEA
 - Open the project in IntelliJ IDEA
-- Configure an environment variable:
-  - Name: `DB_PATH`
-  - Value: `example/data/app.db`
 - Run the `ExampleApplication` class from the IDE
 
 ### Accessing the Admin UI
 - Once the application is running, navigate to `http:localhost:8080/admin` on your web browser.
-
-> [!NOTE]
-> If you encounter an error `Caused by: org.sqlite.SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: users.id)` when running the app, navigate to `example/data` directory and delete the `app.db` file. Then run the app again.

@@ -2,8 +2,12 @@ package com.paleblueapps.springadmin.web
 
 import com.paleblueapps.springadmin.autoconfigure.AdminProperties
 import com.paleblueapps.springadmin.core.AdminCrudService
+import com.paleblueapps.springadmin.core.AdminEntityDescriptor
 import com.paleblueapps.springadmin.core.AdminEntityRegistry
 import com.paleblueapps.springadmin.core.PaginationInfo
+import jakarta.persistence.Column
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.Lob
 import jakarta.persistence.ManyToMany
 import jakarta.persistence.OneToMany
 import jakarta.persistence.metamodel.Attribute
@@ -11,10 +15,16 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.web.servlet.mvc.support.RedirectAttributes
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
 
 @Controller
 @RequestMapping(path = ["\${spring.data.admin.base-path:/admin}"])
@@ -24,13 +34,14 @@ class AdminEntityController(
     private val props: AdminProperties,
 ) {
     // region: List endpoint helpers
-    private fun getDescriptorOr404(entity: String) = registry.get(entity) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+    private fun getDescriptorOr404(entity: String): AdminEntityDescriptor =
+        registry.get(entity)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
 
     private fun computePageSize(requested: Int): Int =
         if (requested <= 0) props.pagination.defaultSize else requested.coerceAtMost(props.pagination.maxSize)
 
-    private fun extractAttributeTitlesForList(entityDesc: com.paleblueapps.springadmin.core.AdminEntityDescriptor): List<String> =
-        entityDesc.attributes.map { it.name }
+    private fun extractAttributeTitlesForList(entityDesc: AdminEntityDescriptor): List<String> = entityDesc.attributes.map { it.name }
 
     private fun buildRows(
         attributeTitles: List<String>,
@@ -89,8 +100,176 @@ class AdminEntityController(
         model.addAttribute("q", q)
         model.addAttribute("size", pageSize)
         model.addAttribute("pageSizes", pageSizeOptions())
+        model.addAttribute("selectedAction", "")
 
         return "sda/entity-list"
+    }
+
+    @GetMapping("{entity}/new")
+    fun createForm(
+        @PathVariable entity: String,
+        model: Model,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+
+        addCommonUiContext(model)
+        addEntityFormContext(
+            model = model,
+            desc = desc,
+            editFields = buildEditFields(desc = desc, found = null, createMode = true),
+            collectionTables = emptyList(),
+            pageLabel = "New",
+            formAction = "${props.basePath}/${desc.entityName}",
+            submitLabel = "Create",
+            showDelete = false,
+            showRelations = false,
+            id = null,
+        )
+
+        return "sda/entity-detail"
+    }
+
+    @PostMapping("{entity}")
+    fun create(
+        @PathVariable entity: String,
+        @RequestParam params: Map<String, String>,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+
+        return try {
+            val created = crud.create(entity, params)
+            val createdId =
+                crud.getId(created)?.toString()
+                    ?: throw IllegalStateException("Could not determine the new ${desc.displayName} identifier.")
+            redirectAttributes.addFlashAttribute(
+                "message",
+                "The ${desc.displayName} \"$createdId\" was created successfully.",
+            )
+            "redirect:${props.basePath}/${desc.entityName}/$createdId"
+        } catch (ex: IllegalArgumentException) {
+            redirectAttributes.addFlashAttribute("error", ex.message ?: "Could not create ${desc.displayName}.")
+            "redirect:${props.basePath}/${desc.entityName}/new"
+        } catch (ex: IllegalStateException) {
+            redirectAttributes.addFlashAttribute("error", ex.message ?: "Could not create ${desc.displayName}.")
+            "redirect:${props.basePath}/${desc.entityName}/new"
+        }
+    }
+
+    @PostMapping("{entity}/actions")
+    fun listAction(
+        @PathVariable entity: String,
+        @RequestParam(required = false) action: String?,
+        @RequestParam(name = "selectedIds", required = false) selectedIds: List<String>?,
+        @RequestParam(defaultValue = "false") selectAllMatching: Boolean,
+        @RequestParam(required = false) sort: String?,
+        @RequestParam(required = false) dir: String?,
+        @RequestParam(required = false) q: String?,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val ids = resolveSelectedIds(entity, selectedIds, selectAllMatching, sort, dir, q)
+
+        if (action.isNullOrBlank()) {
+            redirectAttributes.addFlashAttribute("error", "Please choose an action.")
+            return "redirect:${props.basePath}/${desc.entityName}"
+        }
+
+        if (ids.isEmpty()) {
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Items must be selected in order to perform actions on them. No items have been changed.",
+            )
+            return "redirect:${props.basePath}/${desc.entityName}"
+        }
+
+        return when (action) {
+            "delete" -> {
+                redirectAttributes.addFlashAttribute("selectedIds", ids)
+                "redirect:${props.basePath}/${desc.entityName}/delete"
+            }
+
+            else -> {
+                redirectAttributes.addFlashAttribute("error", "Unknown action: $action")
+                "redirect:${props.basePath}/${desc.entityName}"
+            }
+        }
+    }
+
+    @GetMapping("{entity}/delete")
+    fun bulkDeleteConfirmation(
+        @PathVariable entity: String,
+        @ModelAttribute("selectedIds") selectedIds: List<String>?,
+        model: Model,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val ids =
+            selectedIds
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                .orEmpty()
+        if (ids.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No items selected for deletion")
+        }
+
+        val objects =
+            ids.mapNotNull { id ->
+                crud.findById(entity, id)?.let { found ->
+                    mapOf(
+                        "id" to id,
+                        "label" to found.toString(),
+                    )
+                }
+            }
+
+        if (objects.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND)
+        }
+
+        addCommonUiContext(model)
+        model.addAttribute("descriptor", desc)
+        model.addAttribute("selectedIds", objects.map { it["id"] })
+        model.addAttribute("deleteObjects", objects)
+
+        return "sda/entity-delete-bulk"
+    }
+
+    @PostMapping("{entity}/delete")
+    fun bulkDelete(
+        @PathVariable entity: String,
+        @RequestParam(name = "selectedIds", required = false) selectedIds: List<String>?,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val ids =
+            selectedIds
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                .orEmpty()
+
+        if (ids.isEmpty()) {
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Items must be selected in order to perform actions on them. No items have been changed.",
+            )
+            return "redirect:${props.basePath}/${desc.entityName}"
+        }
+
+        return try {
+            val deletedCount = crud.deleteAllByIds(entity, ids)
+            val missingCount = ids.size - deletedCount
+            redirectAttributes.addFlashAttribute("message", buildBulkDeleteMessage(desc.displayName, deletedCount, missingCount))
+            "redirect:${props.basePath}/${desc.entityName}"
+        } catch (ex: Exception) {
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Could not delete the selected ${desc.displayName.lowercase()} records. Remove related records first and try again.",
+            )
+            redirectAttributes.addFlashAttribute("selectedIds", ids)
+            "redirect:${props.basePath}/${desc.entityName}/delete"
+        }
     }
 
     @GetMapping("{entity}/{id}")
@@ -101,68 +280,164 @@ class AdminEntityController(
     ): String {
         val desc = getDescriptorOr404(entity)
         val found = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
-
-        val (attributes, values, links) = buildDetailRows(found, desc.detailAttributes)
         val collectionTables = buildCollectionPreviews(found)
+        val editFields = buildEditFields(desc = desc, found = found, createMode = false)
 
         addCommonUiContext(model)
-        model.addAttribute("descriptor", desc)
-        model.addAttribute("attributes", attributes)
-        model.addAttribute("values", values)
-        model.addAttribute("links", links)
-        model.addAttribute("collectionTables", collectionTables)
-        model.addAttribute("id", id)
+        addEntityFormContext(
+            model = model,
+            desc = desc,
+            editFields = editFields,
+            collectionTables = collectionTables,
+            pageLabel = id,
+            formAction = "${props.basePath}/${desc.entityName}/$id",
+            submitLabel = "Save",
+            showDelete = true,
+            showRelations = true,
+            id = id,
+        )
 
         return "sda/entity-detail"
     }
 
-    private fun buildDetailRows(
-        found: Any,
-        detailAttrs: List<jakarta.persistence.metamodel.Attribute<*, *>>,
-    ): Triple<List<String>, List<String?>, List<String?>> {
-        val attributes = mutableListOf<String>()
-        val values = mutableListOf<String?>()
-        val links = mutableListOf<String?>()
+    @PostMapping("{entity}/{id}")
+    fun update(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        @RequestParam params: Map<String, String>,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
 
-        detailAttrs.forEach { attr ->
-            attributes += attr.name
-            try {
-                val field = found.javaClass.getDeclaredField(attr.name)
-                field.isAccessible = true
-                val value = field.get(found)
-                if (value == null) {
-                    values += null
-                    links += null
-                } else if (
-                    attr.persistentAttributeType in
-                    setOf(
-                        Attribute.PersistentAttributeType.MANY_TO_ONE,
-                        Attribute.PersistentAttributeType.ONE_TO_ONE,
-                    )
-                ) {
-                    val targetDesc = registry.getByJavaType(value.javaClass)
-                    val idVal = crud.getId(value)
-                    val text = value.toString()
-                    val href =
-                        if (targetDesc != null && idVal != null) {
-                            props.basePath.trimEnd('/') + "/" + targetDesc.entityName + "/" + idVal
-                        } else {
-                            null
-                        }
-                    values += text
-                    links += href
-                } else {
-                    values += value.toString()
-                    links += null
-                }
-            } catch (_: Exception) {
-                values += null
-                links += null
+        return try {
+            crud.update(entity, id, params)
+            redirectAttributes.addFlashAttribute("message", "The ${desc.displayName} \"$id\" was saved successfully.")
+            "redirect:${props.basePath}/${desc.entityName}/$id"
+        } catch (ex: IllegalArgumentException) {
+            redirectAttributes.addFlashAttribute("error", ex.message ?: "Could not save ${desc.displayName} \"$id\".")
+            "redirect:${props.basePath}/${desc.entityName}/$id"
+        }
+    }
+
+    @GetMapping("{entity}/{id}/delete")
+    fun deleteConfirmation(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        model: Model,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+        val found = crud.findById(entity, id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
+
+        addCommonUiContext(model)
+        model.addAttribute("descriptor", desc)
+        model.addAttribute("id", id)
+        model.addAttribute("deleteObjectLabel", found.toString())
+
+        return "sda/entity-delete"
+    }
+
+    @PostMapping("{entity}/{id}/delete")
+    fun delete(
+        @PathVariable entity: String,
+        @PathVariable id: String,
+        redirectAttributes: RedirectAttributes,
+    ): String {
+        val desc = getDescriptorOr404(entity)
+
+        return try {
+            val deleted = crud.deleteById(entity, id)
+            if (deleted) {
+                redirectAttributes.addFlashAttribute("message", "The ${desc.displayName} \"$id\" was deleted successfully.")
+            } else {
+                redirectAttributes.addFlashAttribute("error", "The ${desc.displayName} \"$id\" no longer exists.")
             }
+            "redirect:${props.basePath}/${desc.entityName}"
+        } catch (ex: Exception) {
+            redirectAttributes.addFlashAttribute(
+                "error",
+                "Could not delete ${desc.displayName} \"$id\". Remove related records first and try again.",
+            )
+            "redirect:${props.basePath}/${desc.entityName}/$id/delete"
+        }
+    }
+
+    private fun buildEditFields(
+        desc: AdminEntityDescriptor,
+        found: Any?,
+        createMode: Boolean,
+    ): List<Map<String, Any?>> =
+        desc.detailAttributes
+            .filterNot { createMode && desc.idGenerated && it.name == desc.idAttribute }
+            .map { attr ->
+                val value = found?.let { readFieldValue(it, attr.name) }
+                val relationDesc = if (isAssociation(attr)) registry.getByJavaType(attr.javaType) else null
+                val relationOptions =
+                    relationDesc
+                        ?.let { related ->
+                            crud.listAll(related.entityName).map { option ->
+                                mapOf(
+                                    "id" to crud.getId(option)?.toString(),
+                                    "label" to option.toString(),
+                                )
+                            }
+                        } ?: emptyList()
+
+                mapOf(
+                    "name" to attr.name,
+                    "label" to humanize(attr.name),
+                    "inputType" to inputTypeFor(attr),
+                    "value" to formatValue(attr, value),
+                    "required" to isFieldRequired(attr, desc, createMode),
+                    "readonly" to (!createMode && attr.name == desc.idAttribute),
+                    "relation" to (relationDesc != null),
+                    "relationOptions" to relationOptions,
+                    "relationValue" to relationValue(relationDesc, value),
+                    "relationEntityName" to relationDesc?.entityName,
+                )
+            }
+
+    private fun addEntityFormContext(
+        model: Model,
+        desc: AdminEntityDescriptor,
+        editFields: List<Map<String, Any?>>,
+        collectionTables: List<Map<String, Any?>>,
+        pageLabel: String,
+        formAction: String,
+        submitLabel: String,
+        showDelete: Boolean,
+        showRelations: Boolean,
+        id: String?,
+    ) {
+        model.addAttribute("descriptor", desc)
+        model.addAttribute("editFields", editFields)
+        model.addAttribute("collectionTables", collectionTables)
+        model.addAttribute("pageLabel", pageLabel)
+        model.addAttribute("formAction", formAction)
+        model.addAttribute("submitLabel", submitLabel)
+        model.addAttribute("showDelete", showDelete)
+        model.addAttribute("showRelations", showRelations)
+        model.addAttribute("id", id)
+    }
+
+    private fun relationValue(
+        relationDesc: AdminEntityDescriptor?,
+        value: Any?,
+    ): String? =
+        if (relationDesc != null) {
+            value?.let { crud.getId(it)?.toString() }
+        } else {
+            null
         }
 
-        return Triple(attributes, values, links)
-    }
+    private fun isFieldRequired(
+        attr: Attribute<*, *>,
+        desc: AdminEntityDescriptor,
+        createMode: Boolean,
+    ): Boolean =
+        when {
+            attr.name == desc.idAttribute -> createMode && !desc.idGenerated
+            else -> isRequired(attr)
+        }
 
     private fun buildCollectionPreviews(found: Any): List<Map<String, Any?>> {
         val collectionTables: MutableList<Map<String, Any?>> = mutableListOf()
@@ -232,6 +507,125 @@ class AdminEntityController(
         return collectionTables
     }
 
+    private fun readFieldValue(
+        target: Any,
+        fieldName: String,
+    ): Any? =
+        try {
+            val field = target.javaClass.getDeclaredField(fieldName)
+            field.isAccessible = true
+            field.get(target)
+        } catch (_: Exception) {
+            null
+        }
+
+    private fun isAssociation(attr: Attribute<*, *>): Boolean =
+        attr.persistentAttributeType in
+            setOf(
+                Attribute.PersistentAttributeType.MANY_TO_ONE,
+                Attribute.PersistentAttributeType.ONE_TO_ONE,
+            )
+
+    private fun isRequired(attr: Attribute<*, *>): Boolean {
+        val annotated = attr.javaMember as? java.lang.reflect.AnnotatedElement ?: return false
+        val column = annotated.getAnnotation(Column::class.java)
+        val joinColumn = annotated.getAnnotation(JoinColumn::class.java)
+        return when {
+            joinColumn != null -> !joinColumn.nullable
+            column != null -> !column.nullable
+            attr.javaType.isPrimitive -> true
+            else -> false
+        }
+    }
+
+    private fun inputTypeFor(attr: Attribute<*, *>): String =
+        if (isTextArea(attr)) {
+            "textarea"
+        } else {
+            when (attr.javaType) {
+                Int::class.java,
+                java.lang.Integer::class.java,
+                Long::class.java,
+                java.lang.Long::class.java,
+                Short::class.java,
+                java.lang.Short::class.java,
+                Double::class.java,
+                java.lang.Double::class.java,
+                Float::class.java,
+                java.lang.Float::class.java,
+                -> "number"
+                LocalDate::class.java -> "date"
+                LocalDateTime::class.java, OffsetDateTime::class.java -> "datetime-local"
+                java.lang.Boolean::class.java, Boolean::class.java -> "checkbox"
+                else -> "text"
+            }
+        }
+
+    private fun formatValue(
+        attr: Attribute<*, *>,
+        value: Any?,
+    ): String? =
+        when (value) {
+            null -> null
+            is LocalDate -> value.toString()
+            is LocalDateTime -> value.toString().substringBeforeLast(":")
+            is OffsetDateTime -> value.toLocalDateTime().toString().substringBeforeLast(":")
+            is Boolean -> value.toString()
+            else -> if (isAssociation(attr)) null else value.toString()
+        }
+
+    private fun isTextArea(attr: Attribute<*, *>): Boolean {
+        val annotated = attr.javaMember as? java.lang.reflect.AnnotatedElement ?: return false
+        val column = annotated.getAnnotation(Column::class.java)
+        return annotated.getAnnotation(Lob::class.java) != null ||
+            column
+                ?.columnDefinition
+                ?.contains("TEXT", ignoreCase = true) == true
+    }
+
+    private fun humanize(name: String): String =
+        name
+            .replace(Regex("([a-z])([A-Z])"), "$1 $2")
+            .replace('_', ' ')
+            .replaceFirstChar { it.uppercase() }
+
+    private fun buildBulkDeleteMessage(
+        displayName: String,
+        deletedCount: Int,
+        missingCount: Int,
+    ): String {
+        val deletedPart =
+            when (deletedCount) {
+                0 -> "No ${displayName.lowercase()} records were deleted"
+                1 -> "Successfully deleted 1 $displayName"
+                else -> "Successfully deleted $deletedCount ${displayName.lowercase()} records"
+            }
+
+        return if (missingCount > 0) {
+            "$deletedPart. $missingCount selected record(s) no longer existed."
+        } else {
+            "$deletedPart."
+        }
+    }
+
+    private fun resolveSelectedIds(
+        entity: String,
+        selectedIds: List<String>?,
+        selectAllMatching: Boolean,
+        sort: String?,
+        dir: String?,
+        q: String?,
+    ): List<String> =
+        if (selectAllMatching) {
+            crud.listIds(entity, sort, dir, q).distinct()
+        } else {
+            selectedIds
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.distinct()
+                .orEmpty()
+        }
+
     // Paginated and searchable view for collection relations from an entity detail page
     @GetMapping("{entity}/{id}/rel/{rel}")
     fun relationList(
@@ -258,6 +652,7 @@ class AdminEntityController(
         val dataPage = paginate(sorted, page, pageSize)
         val rows = buildRows(attributeTitles, dataPage.content)
         val rowIds = buildRowIds(dataPage.content)
+        val allRowIds = buildRowIds(sorted)
 
         val listBaseUrl = props.basePath + "/" + parentDesc.entityName + "/" + id + "/rel/" + rel
         val paginationInfo = PaginationInfo.from(dataPage)
@@ -269,6 +664,7 @@ class AdminEntityController(
         model.addAttribute("attributeTitles", attributeTitles)
         model.addAttribute("rows", rows)
         model.addAttribute("rowIds", rowIds)
+        model.addAttribute("allRowIds", allRowIds)
         model.addAttribute("pagination", paginationInfo)
         model.addAttribute("listBaseUrl", listBaseUrl)
         model.addAttribute("sort", sort)

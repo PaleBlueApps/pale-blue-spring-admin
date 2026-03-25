@@ -1,78 +1,407 @@
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
-<body>
-<div class="flex flex-col h-full pb-6">
-    <div class="sticky top-0 bg-gray-50 z-10 pt-6">
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  lang="en"
+  th:replace="~{sda/base :: layout(~{::body})}"
+>
+  <body>
+    <div class="flex flex-col h-full pb-6">
+      <div class="sticky top-0 bg-gray-50 z-10 pt-6">
         <h2 class="text-xl font-semibold mb-4">
-            <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
-            <span class="text-gray-400">/</span>
-            <a th:href="${basePath + '/' + parentDescriptor.entityName}" class="text-blue-600 hover:underline"
-               th:text="${parentDescriptor.displayName}">Parent</a>
-            <span class="text-gray-400">/</span>
-            <span class="text-gray-600" th:text="${descriptor.displayName}">Relation</span>
-            <span class="text-gray-400">/</span>
-            <span class="text-gray-500" th:text="${relName}">rel</span>
+          <a th:href="${basePath}" class="text-blue-600 hover:underline"
+            >Entities</a
+          >
+          <span class="text-gray-400">/</span>
+          <a
+            th:href="${basePath + '/' + parentDescriptor.entityName}"
+            class="text-blue-600 hover:underline"
+            th:text="${parentDescriptor.displayName}"
+            >Parent</a
+          >
+          <span class="text-gray-400">/</span>
+          <span class="text-gray-600" th:text="${descriptor.displayName}"
+            >Relation</span
+          >
+          <span class="text-gray-400">/</span>
+          <span class="text-gray-500" th:text="${relName}">rel</span>
         </h2>
         <!-- Toolbar: page size selector and search -->
         <div class="mb-3 flex items-center justify-between">
-            <form th:action="@{${listBaseUrl}}" method="get"
-                  class="flex items-center justify-between w-full gap-4">
-                <input type="hidden" name="page" value="0"/>
-                <input type="hidden" name="sort" th:value="${sort}" th:if="${sort}"/>
-                <input type="hidden" name="dir" th:value="${dir}" th:if="${dir}"/>
-                <div class="flex items-center gap-2">
-                    <label for="size" class="text-sm text-gray-600">Rows per page</label>
-                    <select id="size" name="size" class="border rounded px-2 py-1 text-sm" th:value="${size}"
-                            onchange="this.form.submit()">
-                        <option th:each="s : ${pageSizes}" th:value="${s}" th:text="${s}" th:selected="${s == size}">25
-                        </option>
-                    </select>
-                </div>
-                <div class="flex items-center gap-2 ml-auto">
-                    <input type="text" name="q" placeholder="Search" class="border rounded px-2 py-1 text-sm"
-                           th:value="${q}"/>
-                    <button type="submit" class="px-2 py-1 text-sm border rounded bg-gray-50 hover:bg-gray-100">Search
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="flex-1">
-        <div class="bg-white shadow border border-gray-200">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            th:each="attribute,iterStat : ${attributeTitles}">
-                            <a class="inline-flex items-center gap-1 hover:underline"
-                               th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + '&sort=' + attribute + '&dir=' + ((sort == attribute and dir == 'asc') ? 'desc' : 'asc') + (q != null ? '&q=' + q : '')}"
-                               th:text="${attribute}"></a>
-                            <a th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + (q != null ? '&q=' + q : '')}"
-                               th:if="${sort == attribute}" class="text-gray-400"
-                               th:text="${dir == 'desc' ? '▼' : '▲'}">▲</a>
-                        </th>
-                    </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                    <tr class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        th:each="row, rStat : ${rows}"
-                        th:attr="data-href=${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index]}"
-                        tabindex="0" role="link">
-                        <td class="px-4 py-2 text-sm leading-tight text-gray-700 align-middle overflow-hidden" th:each="data, dStat : ${row}">
-                            <span class="block truncate max-w-60" th:text="${data}">cell</span>
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
+          <form
+            th:action="@{${listBaseUrl}}"
+            method="get"
+            class="flex items-center justify-between w-full gap-4"
+          >
+            <input type="hidden" name="page" value="0" />
+            <input
+              type="hidden"
+              name="sort"
+              th:value="${sort}"
+              th:if="${sort}"
+            />
+            <input type="hidden" name="dir" th:value="${dir}" th:if="${dir}" />
+            <div class="flex items-center gap-2">
+              <label for="size" class="text-sm text-gray-600"
+                >Rows per page</label
+              >
+              <select
+                id="size"
+                name="size"
+                class="border rounded px-2 py-1 text-sm"
+                th:value="${size}"
+                onchange="this.form.submit()"
+              >
+                <option
+                  th:each="s : ${pageSizes}"
+                  th:value="${s}"
+                  th:text="${s}"
+                  th:selected="${s == size}"
+                >
+                  25
+                </option>
+              </select>
             </div>
+            <div class="flex items-center gap-2 ml-auto">
+              <input
+                type="text"
+                name="q"
+                placeholder="Search"
+                class="border rounded px-2 py-1 text-sm"
+                th:value="${q}"
+              />
+              <button
+                type="submit"
+                class="px-2 py-1 text-sm border rounded bg-gray-50 hover:bg-gray-100"
+              >
+                Search
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
+
+      <div class="flex-1">
+        <form
+          th:action="@{${basePath + '/' + descriptor.entityName + '/actions'}}"
+          method="post"
+          class="space-y-4"
+        >
+          <input
+            th:if="${_csrf != null}"
+            type="hidden"
+            th:name="${_csrf.parameterName}"
+            th:value="${_csrf.token}"
+          />
+          <input type="hidden" name="sort" th:value="${sort}" />
+          <input type="hidden" name="dir" th:value="${dir}" />
+          <input type="hidden" name="q" th:value="${q}" />
+          <input id="select-all-matching" type="hidden" value="false" />
+          <input
+            th:each="selectedId : ${allRowIds}"
+            type="hidden"
+            name="selectedIds"
+            th:value="${selectedId}"
+            class="all-row-selector"
+            disabled="disabled"
+          />
+          <div
+            class="flex flex-col gap-3 px-2 py-2 sm:flex-row sm:items-center"
+          >
+            <div class="flex items-center gap-2">
+              <label for="action" class="text-sm font-medium text-gray-700"
+                >Action</label
+              >
+              <select
+                id="action"
+                name="action"
+                required
+                class="min-w-48 rounded border border-gray-300 px-2 py-1 text-sm text-gray-700"
+              >
+                <option value="">---------</option>
+                <option value="delete">Delete selected</option>
+              </select>
+              <button
+                type="submit"
+                class="rounded border border-gray-300 bg-gray-50 px-2 py-0.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+              >
+                Go
+              </button>
+              <span id="selected-count" class="text-sm text-gray-500"
+                >0 of 0 selected</span
+              >
+              <button
+                id="select-all-results"
+                type="button"
+                class="hidden text-sm font-medium text-blue-600 transition hover:text-blue-700 hover:underline"
+              >
+                Select all
+              </button>
+            </div>
+            <div
+              class="text-sm text-gray-500 sm:ml-auto"
+              data-total-count="0"
+              th:attr="data-total-count=${pagination.totalElements}"
+            ></div>
+          </div>
+
+          <div class="bg-white shadow border border-gray-200">
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th
+                      scope="col"
+                      class="w-12 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
+                    >
+                      <input
+                        id="select-all"
+                        type="checkbox"
+                        class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </th>
+                    <th
+                      scope="col"
+                      class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                      th:each="attribute,iterStat : ${attributeTitles}"
+                    >
+                      <a
+                        class="inline-flex items-center gap-1 hover:underline"
+                        th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + '&sort=' + attribute + '&dir=' + ((sort == attribute and dir == 'asc') ? 'desc' : 'asc') + (q != null ? '&q=' + q : '')}"
+                        th:text="${attribute}"
+                      ></a>
+                      <a
+                        th:href="${listBaseUrl + '?page=0' + (size != null ? '&size=' + size : '') + (q != null ? '&q=' + q : '')}"
+                        th:if="${sort == attribute}"
+                        class="text-gray-400"
+                        th:text="${dir == 'desc' ? '▼' : '▲'}"
+                        >▲</a
+                      >
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  <tr
+                    class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    th:each="row, rStat : ${rows}"
+                    th:attr="data-href=${basePath + '/' + descriptor.entityName + '/' + rowIds[rStat.index]}"
+                    tabindex="0"
+                    role="link"
+                  >
+                    <td class="px-4 py-2 align-middle" data-no-row-nav>
+                      <input
+                        type="checkbox"
+                        name="selectedIds"
+                        th:value="${rowIds[rStat.index]}"
+                        class="row-selector h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td
+                      class="px-4 py-2 text-sm leading-tight text-gray-700 align-middle overflow-hidden"
+                      th:each="data, dStat : ${row}"
+                    >
+                      <span class="block truncate max-w-60" th:text="${data}"
+                        >cell</span
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </form>
         <div class="mt-4 flex items-center gap-2">
-            <div th:replace="~{sda/pagination :: pagination(${pagination}, ${listBaseUrl}, ${size}, ${sort}, ${dir}, ${q})}"></div>
+          <div
+            th:replace="~{sda/pagination :: pagination(${pagination}, ${listBaseUrl}, ${size}, ${sort}, ${dir}, ${q})}"
+          ></div>
         </div>
+      </div>
     </div>
-</div>
-</body>
+    <script>
+      (function () {
+        function shouldIgnoreRowNavigation(target) {
+          return !!(
+            target &&
+            target.closest &&
+            target.closest(
+              "a, button, input, select, textarea, label, [data-no-row-nav]",
+            )
+          );
+        }
+
+        function syncSelectAllState() {
+          const selectAll = document.getElementById("select-all");
+          const checkboxes = Array.from(
+            document.querySelectorAll(".row-selector"),
+          );
+          const checkedCount = checkboxes.filter(function (box) {
+            return box.checked;
+          }).length;
+          const pageCount = checkboxes.length;
+          const selectedCount = document.getElementById("selected-count");
+          const selectAllMatching = document.getElementById(
+            "select-all-matching",
+          );
+          const selectAllResults =
+            document.getElementById("select-all-results");
+          const totalLabel = document.querySelector("[data-total-count]");
+          const totalCount = totalLabel
+            ? parseInt(totalLabel.getAttribute("data-total-count") || "0", 10)
+            : checkboxes.length;
+          const isAllMatching =
+            selectAllMatching && selectAllMatching.value === "true";
+          const isPageFullySelected =
+            pageCount > 0 && checkedCount === pageCount;
+
+          if (selectedCount) {
+            const count = isAllMatching ? totalCount : checkedCount;
+            const baseCount = isAllMatching ? totalCount : pageCount;
+            selectedCount.textContent =
+              count + " of " + baseCount + " selected";
+          }
+
+          if (selectAllResults) {
+            if (isAllMatching) {
+              selectAllResults.textContent = "Clear selection";
+              selectAllResults.classList.remove("hidden");
+            } else {
+              selectAllResults.textContent = "Select all " + totalCount;
+              if (isPageFullySelected && totalCount > pageCount) {
+                selectAllResults.classList.remove("hidden");
+              } else {
+                selectAllResults.classList.add("hidden");
+              }
+            }
+          }
+
+          if (!selectAll || checkboxes.length === 0) {
+            return;
+          }
+
+          selectAll.checked =
+            checkedCount > 0 && checkedCount === checkboxes.length;
+          selectAll.indeterminate =
+            checkedCount > 0 && checkedCount < checkboxes.length;
+        }
+
+        document.addEventListener(
+          "change",
+          function (e) {
+            if (e.target && e.target.id === "select-all") {
+              const checked = e.target.checked;
+              document
+                .querySelectorAll(".row-selector")
+                .forEach(function (box) {
+                  box.checked = checked;
+                });
+              document
+                .querySelectorAll(".all-row-selector")
+                .forEach(function (input) {
+                  input.disabled = true;
+                });
+              const selectAllMatching = document.getElementById(
+                "select-all-matching",
+              );
+              if (selectAllMatching) {
+                selectAllMatching.value = "false";
+              }
+              syncSelectAllState();
+              return;
+            }
+
+            if (
+              e.target &&
+              e.target.classList &&
+              e.target.classList.contains("row-selector")
+            ) {
+              document
+                .querySelectorAll(".all-row-selector")
+                .forEach(function (input) {
+                  input.disabled = true;
+                });
+              const selectAllMatching = document.getElementById(
+                "select-all-matching",
+              );
+              if (selectAllMatching) {
+                selectAllMatching.value = "false";
+              }
+              syncSelectAllState();
+            }
+          },
+          false,
+        );
+
+        document.addEventListener(
+          "click",
+          function (e) {
+            if (e.target && e.target.id === "select-all-results") {
+              e.preventDefault();
+              const selectAllMatching = document.getElementById(
+                "select-all-matching",
+              );
+              const checkboxes = Array.from(
+                document.querySelectorAll(".row-selector"),
+              );
+              const allRowSelectors = Array.from(
+                document.querySelectorAll(".all-row-selector"),
+              );
+              const enableAll =
+                !selectAllMatching || selectAllMatching.value !== "true";
+
+              checkboxes.forEach(function (box) {
+                box.checked = enableAll;
+              });
+
+              allRowSelectors.forEach(function (input) {
+                input.disabled = !enableAll;
+              });
+
+              if (selectAllMatching) {
+                selectAllMatching.value = enableAll ? "true" : "false";
+              }
+
+              const selectAll = document.getElementById("select-all");
+              if (selectAll) {
+                selectAll.checked = enableAll && checkboxes.length > 0;
+                selectAll.indeterminate = false;
+              }
+
+              syncSelectAllState();
+              return;
+            }
+
+            if (shouldIgnoreRowNavigation(e.target)) {
+              return;
+            }
+            const tr = e.target.closest && e.target.closest("tr[data-href]");
+            if (tr) {
+              const href = tr.getAttribute("data-href");
+              if (href) {
+                window.location.href = href;
+              }
+            }
+          },
+          false,
+        );
+
+        document.addEventListener(
+          "keydown",
+          function (e) {
+            if (e.key === "Enter" || e.key === " ") {
+              const el = document.activeElement;
+              if (el && el.matches && el.matches("tr[data-href]")) {
+                e.preventDefault();
+                const href = el.getAttribute("data-href");
+                if (href) {
+                  window.location.href = href;
+                }
+              }
+            }
+          },
+          false,
+        );
+
+        syncSelectAllState();
+      })();
+    </script>
+  </body>
 </html>

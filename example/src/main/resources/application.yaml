@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:sqlite:${DB_PATH:data/app.db}
+    url: jdbc:sqlite:data/app.sqlite3?foreign_keys=on
     driver-class-name: org.sqlite.JDBC
 
   jpa:

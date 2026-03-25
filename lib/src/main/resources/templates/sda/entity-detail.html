@@ -1,90 +1,253 @@
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en" th:replace="~{sda/base :: layout(~{::body})}">
-<body>
-<div class="pb-6">
-    <h2 class="text-xl font-semibold pb-4 sticky top-0 bg-gray-50 z-10 pt-6">
-        <a th:href="${basePath}" class="text-blue-600 hover:underline">Entities</a>
+<!doctype html>
+<html
+  xmlns:th="http://www.thymeleaf.org"
+  lang="en"
+  th:replace="~{sda/base :: layout(~{::body})}"
+>
+  <body>
+    <div class="pb-6">
+      <h2 class="text-xl font-semibold pb-4 sticky top-0 bg-gray-50 z-10 pt-6">
+        <a th:href="${basePath}" class="text-blue-600 hover:underline"
+          >Entities</a
+        >
         <span class="text-gray-400">/</span>
-        <a th:href="${basePath + '/' + descriptor.entityName}" class="text-blue-600 hover:underline"
-           th:text="${descriptor.displayName}">Entity</a>
+        <a
+          th:href="${basePath + '/' + descriptor.entityName}"
+          class="text-blue-600 hover:underline"
+          th:text="${descriptor.displayName}"
+          >Entity</a
+        >
         <span class="text-gray-400">/</span>
-        <span class="text-gray-900" th:text="${id}">id</span>
-    </h2>
+        <span class="text-gray-900" th:text="${pageLabel}">id</span>
+      </h2>
 
-    <div class="bg-white rounded-lg shadow border border-gray-200">
-        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <div class="font-semibold">Details</div>
+      <form id="entity-edit-form" th:action="@{${formAction}}" method="post">
+        <input
+          th:if="${_csrf != null}"
+          type="hidden"
+          th:name="${_csrf.parameterName}"
+          th:value="${_csrf.token}"
+        />
+        <div class="overflow-x-auto border-y border-gray-200 bg-transparent">
+          <table class="min-w-full divide-y divide-gray-200">
+            <tbody class="divide-y divide-gray-100">
+              <tr th:each="field : ${editFields}" class="hover:bg-gray-50">
+                <th
+                  class="w-64 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  th:text="${field['label']}"
+                >
+                  Field
+                </th>
+                <td class="px-4 py-3 text-sm text-gray-800">
+                  <input
+                    th:if="${field['inputType'] != 'textarea' and field['inputType'] != 'checkbox' and field['relation'] != true}"
+                    th:type="${field['inputType']}"
+                    th:name="${field['name']}"
+                    th:value="${field['value']}"
+                    th:readonly="${field['readonly']}"
+                    th:required="${field['required']}"
+                    class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 read-only:bg-gray-100 read-only:text-gray-500"
+                  />
+
+                  <textarea
+                    th:if="${field['inputType'] == 'textarea'}"
+                    th:name="${field['name']}"
+                    th:readonly="${field['readonly']}"
+                    th:required="${field['required']}"
+                    rows="6"
+                    class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 read-only:bg-gray-100 read-only:text-gray-500"
+                    th:text="${field['value']}"
+                  ></textarea>
+
+                  <label
+                    th:if="${field['inputType'] == 'checkbox' and field['relation'] != true}"
+                    class="inline-flex items-center gap-2"
+                  >
+                    <input
+                      type="hidden"
+                      th:name="${field['name']}"
+                      value="false"
+                      th:if="${field['readonly'] != true}"
+                    />
+                    <input
+                      type="checkbox"
+                      th:name="${field['name']}"
+                      value="true"
+                      th:checked="${field['value'] == 'true'}"
+                      th:disabled="${field['readonly']}"
+                      class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span class="text-sm text-gray-700">Enabled</span>
+                  </label>
+
+                  <div th:if="${field['relation'] == true}" class="space-y-2">
+                    <input
+                      type="hidden"
+                      th:name="${field['name']}"
+                      value=""
+                      th:if="${field['required'] != true and field['readonly'] != true}"
+                    />
+                    <select
+                      th:name="${field['name']}"
+                      th:disabled="${field['readonly']}"
+                      th:required="${field['required']}"
+                      class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-gray-100 disabled:text-gray-500"
+                    >
+                      <option value="" th:if="${field['required'] != true}">
+                        ---------
+                      </option>
+                      <option
+                        th:each="option : ${field['relationOptions']}"
+                        th:value="${option['id']}"
+                        th:selected="${option['id'] == field['relationValue']}"
+                        th:text="${option['label']}"
+                      >
+                        Option
+                      </option>
+                    </select>
+                    <a
+                      th:if="${field['relationValue'] != null and field['relationEntityName'] != null}"
+                      th:href="${basePath + '/' + field['relationEntityName'] + '/' + field['relationValue']}"
+                      class="inline-flex text-sm text-blue-700 hover:underline"
+                      >Open related object</a
+                    >
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="overflow-x-auto">
+
+        <div class="mt-4 flex items-center gap-3">
+          <button
+            type="submit"
+            class="inline-flex items-center rounded border border-blue-600 bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            th:text="${submitLabel}"
+          >
+            Save
+          </button>
+          <a
+            th:if="${showDelete}"
+            th:href="${basePath + '/' + descriptor.entityName + '/' + id + '/delete'}"
+            class="inline-flex items-center rounded border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+            >Delete</a
+          >
+        </div>
+      </form>
+
+      <!-- Relations: collection associations as tables -->
+      <div
+        class="space-y-6 mt-6"
+        th:if="${showRelations and collectionTables != null}"
+      >
+        <div
+          class="bg-white rounded-lg shadow border border-gray-200"
+          th:each="rel : ${collectionTables}"
+        >
+          <div
+            class="px-4 py-3 border-b border-gray-200 flex items-center justify-between"
+          >
+            <div class="font-semibold">
+              <span th:text="${rel['name']}">relation</span>
+              <span class="text-gray-400">/</span>
+              <span class="text-gray-600" th:text="${rel['targetDisplayName']}"
+                >Target</span
+              >
+            </div>
+            <div class="flex items-center gap-3">
+              <div
+                class="text-sm text-gray-500"
+                th:if="${rel['totalCount'] != null}"
+              >
+                <span th:text="${rel['totalCount']}">0</span>
+                <span>items</span>
+                <span
+                  th:if="${rel['limited'] == true}"
+                  class="ml-2 inline-flex items-center rounded bg-yellow-50 px-2 py-0.5 text-xs text-yellow-800 border border-yellow-200"
+                  th:text="${'showing first ' + rel['previewLimit']}"
+                  >showing first 25</span
+                >
+              </div>
+              <a
+                class="text-sm text-blue-600 hover:underline"
+                th:href="${basePath + '/' + descriptor.entityName + '/' + id + '/rel/' + rel['name']}"
+                >Open</a
+              >
+            </div>
+          </div>
+          <div class="p-4" th:if="${#lists.isEmpty(rel['rows'])}">
+            <span class="text-sm text-gray-500">—</span>
+          </div>
+          <div class="overflow-x-auto" th:if="${!#lists.isEmpty(rel['rows'])}">
             <table class="min-w-full divide-y divide-gray-200">
-                <tbody class="divide-y divide-gray-100">
-                <tr th:each="attr, iStat : ${attributes}" class="hover:bg-gray-50">
-                    <th class="w-64 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        th:text="${attr}">Attribute
-                    </th>
-                    <td class="px-4 py-3 text-sm text-gray-800">
-                        <a th:if="${links != null and links[iStat.index] != null and links[iStat.index] != ''}"
-                           th:href="${links[iStat.index]}"
-                           class="text-blue-700 hover:underline"
-                           th:text="${values[iStat.index]}">Linked</a>
-                        <span th:if="${links == null or links[iStat.index] == null or links[iStat.index] == ''}"
-                              th:text="${values[iStat.index]} ?: '—'">Value</span>
-                    </td>
+              <thead class="bg-gray-50">
+                <tr>
+                  <th
+                    scope="col"
+                    class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    th:each="attribute : ${rel['attributeTitles']}"
+                    th:text="${attribute}"
+                  >
+                    Attr
+                  </th>
                 </tr>
-                </tbody>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr
+                  class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  th:each="row, rStat : ${rel['rows']}"
+                  th:attr="data-href=${basePath + '/' + rel['targetEntity'] + '/' + rel['rowIds'][rStat.index]}"
+                  tabindex="0"
+                  role="link"
+                >
+                  <td
+                    class="px-4 py-2 text-sm leading-tight text-gray-700 align-middle overflow-hidden"
+                    th:each="data, dStat : ${row}"
+                  >
+                    <span class="block truncate max-w-60" th:text="${data}"
+                      >cell</span
+                    >
+                  </td>
+                </tr>
+              </tbody>
             </table>
+          </div>
         </div>
+      </div>
     </div>
+    <script>
+      (function () {
+        document.addEventListener(
+          "click",
+          function (e) {
+            const tr = e.target.closest && e.target.closest("tr[data-href]");
+            if (tr) {
+              const href = tr.getAttribute("data-href");
+              if (href) {
+                window.location.href = href;
+              }
+            }
+          },
+          false,
+        );
 
-    <!-- Relations: collection associations as tables -->
-    <div class="space-y-6 mt-6" th:if="${collectionTables != null}">
-        <div class="bg-white rounded-lg shadow border border-gray-200" th:each="rel : ${collectionTables}">
-            <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                <div class="font-semibold">
-                    <span th:text="${rel['name']}">relation</span>
-                    <span class="text-gray-400">/</span>
-                    <span class="text-gray-600" th:text="${rel['targetDisplayName']}">Target</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="text-sm text-gray-500" th:if="${rel['totalCount'] != null}">
-                        <span th:text="${rel['totalCount']}">0</span>
-                        <span>items</span>
-                        <span th:if="${rel['limited'] == true}"
-                              class="ml-2 inline-flex items-center rounded bg-yellow-50 px-2 py-0.5 text-xs text-yellow-800 border border-yellow-200"
-                              th:text="${'showing first ' + rel['previewLimit']}">showing first 25</span>
-                    </div>
-                    <a class="text-sm text-blue-600 hover:underline"
-                       th:href="${basePath + '/' + descriptor.entityName + '/' + id + '/rel/' + rel['name']}">Open</a>
-                </div>
-            </div>
-            <div class="p-4" th:if="${#lists.isEmpty(rel['rows'])}">
-                <span class="text-sm text-gray-500">—</span>
-            </div>
-            <div class="overflow-x-auto" th:if="${!#lists.isEmpty(rel['rows'])}">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col"
-                            class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                            th:each="attribute : ${rel['attributeTitles']}"
-                            th:text="${attribute}">Attr
-                        </th>
-                    </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                    <tr class="hover:bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        th:each="row, rStat : ${rel['rows']}"
-                        th:attr="data-href=${basePath + '/' + rel['targetEntity'] + '/' + rel['rowIds'][rStat.index]}"
-                        tabindex="0" role="link">
-                        <td class="px-4 py-2 text-sm leading-tight text-gray-700 align-middle overflow-hidden" th:each="data, dStat : ${row}">
-                            <span class="block truncate max-w-60" th:text="${data}">cell</span>
-                        </td>
-                    </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-</body>
+        document.addEventListener(
+          "keydown",
+          function (e) {
+            if (e.key === "Enter" || e.key === " ") {
+              const el = document.activeElement;
+              if (el && el.matches && el.matches("tr[data-href]")) {
+                e.preventDefault();
+                const href = el.getAttribute("data-href");
+                if (href) {
+                  window.location.href = href;
+                }
+              }
+            }
+          },
+          false,
+        );
+      })();
+    </script>
+  </body>
 </html>

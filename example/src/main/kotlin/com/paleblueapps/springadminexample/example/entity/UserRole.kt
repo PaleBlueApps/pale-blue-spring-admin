@@ -14,18 +14,16 @@ import jakarta.persistence.UniqueConstraint
 @Table(
     name = "user_roles",
     uniqueConstraints = [
-        UniqueConstraint(name = "uk_user_role", columnNames = ["user_id", "role_id"])
-    ]
+        UniqueConstraint(name = "uk_user_role", columnNames = ["user_id", "role_id"]),
+    ],
 )
 data class UserRole(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Int? = null,
-
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false, foreignKey = ForeignKey(name = "fk_userrole_user"))
     val user: User,
-
     @ManyToOne
     @JoinColumn(name = "role_id", nullable = false, foreignKey = ForeignKey(name = "fk_userrole_role"))
-    val role: Role
+    val role: Role,
 )

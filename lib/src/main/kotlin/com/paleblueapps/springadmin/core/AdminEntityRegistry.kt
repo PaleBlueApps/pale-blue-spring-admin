@@ -1,6 +1,7 @@
 package com.paleblueapps.springadmin.core
 
 import jakarta.persistence.EntityManager
+import jakarta.persistence.GeneratedValue
 import jakarta.persistence.metamodel.Attribute
 import java.util.Locale
 
@@ -40,6 +41,9 @@ class AdminEntityRegistry(
                             ?: throw IllegalStateException("Entity ${et.name} must have an @Id attribute.")
                     val idName = idAttr.name
                     val idType = idAttr.javaType
+                    val idGenerated =
+                        (idAttr.javaMember as? java.lang.reflect.AnnotatedElement)
+                            ?.getAnnotation(GeneratedValue::class.java) != null
 
                     // Attributes for list views: BASIC and EMBEDDED only
                     val listAttributes =
@@ -71,6 +75,7 @@ class AdminEntityRegistry(
                             javaType = javaType,
                             idAttribute = idName,
                             idType = idType,
+                            idGenerated = idGenerated,
                             attributes = listAttributes,
                             detailAttributes = detailAttributes,
                         )
