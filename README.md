@@ -75,10 +75,30 @@ spring:
 - Start your Spring Boot app
 - Navigate to http://localhost:8080/admin (or whatever `spring.data.admin.base-path` you configured)
 
-### 4a) Add custom content to the admin index page
-You can inject Thymeleaf fragments before or after the entity list without overriding `sda/index.html`.
+### 5) Customizing the Admin UI
 
-#### application.yml
+#### 5a) Add custom computed fields to your entities
+You can add read-only "computed" fields to your entities using the `@AdminComputedField` annotation. These fields will appear in both the list and detail views.
+
+```kotlin
+import com.paleblueapps.springadmin.annotation.AdminComputedField
+
+@Entity
+class User(
+    val firstName: String,
+    val lastName: String
+) {
+    @AdminComputedField("Full Name")
+    fun getFullName(): String = "$firstName $lastName"
+}
+```
+
+The annotation can be applied to functions or property getters. The `name` parameter defines the label shown in the UI.
+
+#### 5b) Add custom content to the admin index page
+You can inject Thymeleaf fragments before or after the entity list on the dashboard without overriding `sda/index.html`.
+
+**1. Configure the fragments in your `application.yml`**
 ```yaml
 spring:
   data:
@@ -86,24 +106,27 @@ spring:
       ui:
         index-fragments:
           before-entities:
-            - admin/token-usage :: content
+            - admin/header-note :: content
           after-entities:
             - admin/footer-note :: content
 ```
 
-#### Fragment template
+**2. Create the fragment template**
+Create a file at `src/main/resources/templates/admin/header-note.html`:
 ```html
 <!doctype html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
   <body>
-    <section th:fragment="content">
-      <h2>Custom dashboard panel</h2>
+    <section th:fragment="content" class="my-4 p-4 bg-blue-50 border border-blue-200 rounded">
+      <h2 class="text-lg font-bold">Custom dashboard panel</h2>
+      <p th:text="${tokenCount}">0</p>
     </section>
   </body>
 </html>
 ```
 
-If your fragment needs dynamic data, provide it with standard Spring MVC model mechanisms such as `@ControllerAdvice` targeting `AdminIndexController`.
+**3. Provide dynamic data (optional)**
+If your fragment needs dynamic data, use a `@ControllerAdvice` targeting `AdminIndexController`.
 
 ```kotlin
 @ControllerAdvice(assignableTypes = [AdminIndexController::class])
@@ -113,7 +136,7 @@ class AdminIndexAdvice {
 }
 ```
 
-### 5) Securing the admin UI
+### 6) Securing the admin UI
 By default, the endpoints are standard MVC controllers mounted under spring.data.admin.base-path (default /admin). With Spring Security, you can restrict access, e.g.:
 
 Kotlin DSL example (Spring Security 6):
