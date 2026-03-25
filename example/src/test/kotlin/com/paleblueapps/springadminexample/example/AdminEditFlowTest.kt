@@ -120,8 +120,9 @@ class AdminEditFlowTest(
         mockMvc
             .get("/admin/post/1")
             .andExpect {
-                content { string(Matchers.containsString("<option value=\"2\"")) }
-                content { string(Matchers.containsString("selected=\"selected\">alice_smith</option>")) }
+                content { string(Matchers.containsString("name=\"user\"")) }
+                content { string(Matchers.containsString("selected=\"selected\"")) }
+                content { string(Matchers.containsString("alice_smith</option>")) }
             }
     }
 

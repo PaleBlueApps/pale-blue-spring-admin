@@ -1,5 +1,6 @@
 package com.paleblueapps.springadmin.core
 
+import com.paleblueapps.springadmin.annotation.AdminComputedField
 import jakarta.persistence.EntityManager
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.metamodel.Attribute
@@ -67,6 +68,23 @@ class AdminEntityRegistry(
                                 )
                         }
 
+                    val computed =
+                        javaType.methods
+                            .filter { it.isAnnotationPresent(AdminComputedField::class.java) }
+                            .associateBy { method ->
+                                val ann = method.getAnnotation(AdminComputedField::class.java)
+                                ann.name.ifBlank {
+                                    val name = method.name
+                                    if (name.startsWith("get") && name.length > 3) {
+                                        name.substring(3).replaceFirstChar { it.lowercase(Locale.ENGLISH) }
+                                    } else if (name.startsWith("is") && name.length > 2) {
+                                        name.substring(2).replaceFirstChar { it.lowercase(Locale.ENGLISH) }
+                                    } else {
+                                        name
+                                    }
+                                }
+                            }
+
                     val desc =
                         AdminEntityDescriptor(
                             entityName = key,
@@ -78,6 +96,7 @@ class AdminEntityRegistry(
                             idGenerated = idGenerated,
                             attributes = listAttributes,
                             detailAttributes = detailAttributes,
+                            computedFields = computed,
                         )
                     put(key, desc)
                 }

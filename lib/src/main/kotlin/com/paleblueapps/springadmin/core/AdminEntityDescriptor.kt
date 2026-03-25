@@ -1,6 +1,7 @@
 package com.paleblueapps.springadmin.core
 
 import jakarta.persistence.metamodel.Attribute
+import java.lang.reflect.Method
 
 data class AdminEntityDescriptor(
     val entityName: String,
@@ -14,4 +15,6 @@ data class AdminEntityDescriptor(
     val attributes: List<Attribute<*, *>>,
     // Attributes to display in detail views (includes BASIC, EMBEDDED, and singular associations)
     val detailAttributes: List<Attribute<*, *>>,
+    // Methods mapped by field name, representing computed fields annotated with @AdminComputedField
+    val computedFields: Map<String, Method> = emptyMap(),
 )

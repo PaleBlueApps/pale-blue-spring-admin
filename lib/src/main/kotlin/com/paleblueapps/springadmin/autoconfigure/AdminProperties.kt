@@ -16,7 +16,13 @@ data class AdminProperties(
 
     data class Ui(
         val title: String = "Paleblue Spring Admin",
-    )
+        val indexFragments: IndexFragments = IndexFragments(),
+    ) {
+        data class IndexFragments(
+            val beforeEntities: List<String> = emptyList(),
+            val afterEntities: List<String> = emptyList(),
+        )
+    }
 
     data class Pagination(
         val defaultSize: Int = 25,

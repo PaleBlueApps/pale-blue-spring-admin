@@ -1,0 +1,10 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <body>
+    <section th:fragment="overview" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-blue-600">Custom Overview</p>
+      <h2 class="mt-1 text-lg font-semibold text-gray-900">Admin Home Extension</h2>
+      <p class="mt-2 text-sm text-gray-600" th:text="${adminWelcomeMessage}">Custom index content rendered before entities</p>
+    </section>
+  </body>
+</html>
