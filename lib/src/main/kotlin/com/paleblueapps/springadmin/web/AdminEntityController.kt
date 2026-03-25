@@ -678,7 +678,7 @@ class AdminEntityController(
 
         val items = loadRelationItems(parent, rel)
         val targetDesc = determineTargetDescriptor(items)
-        val attributeTitles = targetDesc.attributes.map { it.name }
+        val attributeTitles = targetDesc.attributes.map { it.name } + targetDesc.computedFields.keys
 
         val filtered = filterItems(items, attributeTitles, q, targetDesc)
         val sorted = sortItems(filtered, sort, dir, attributeTitles, targetDesc)
