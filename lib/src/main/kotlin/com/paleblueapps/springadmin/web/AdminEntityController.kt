@@ -41,18 +41,25 @@ class AdminEntityController(
     private fun computePageSize(requested: Int): Int =
         if (requested <= 0) props.pagination.defaultSize else requested.coerceAtMost(props.pagination.maxSize)
 
-    private fun extractAttributeTitlesForList(entityDesc: AdminEntityDescriptor): List<String> = entityDesc.attributes.map { it.name }
+    private fun extractAttributeTitlesForList(entityDesc: AdminEntityDescriptor): List<String> =
+        entityDesc.attributes.map { it.name } + entityDesc.computedFields.keys
 
     private fun buildRows(
         attributeTitles: List<String>,
         content: List<Any>,
+        desc: AdminEntityDescriptor,
     ): List<List<Any?>> =
         content.map { entityObj ->
             attributeTitles.map { attribute ->
                 try {
-                    val field = entityObj.javaClass.getDeclaredField(attribute)
-                    field.isAccessible = true
-                    field.get(entityObj)
+                    val computedMethod = desc.computedFields[attribute]
+                    if (computedMethod != null) {
+                        computedMethod.invoke(entityObj)
+                    } else {
+                        val field = entityObj.javaClass.getDeclaredField(attribute)
+                        field.isAccessible = true
+                        field.get(entityObj)
+                    }
                 } catch (ex: Exception) {
                     null
                 }
@@ -84,7 +91,7 @@ class AdminEntityController(
         val attributeTitles = extractAttributeTitlesForList(desc)
         val pageSize = computePageSize(size)
         val data = crud.list(entity, page, pageSize, sort, dir, q)
-        val rows = buildRows(attributeTitles, data.content)
+        val rows = buildRows(attributeTitles, data.content, desc)
         val rowIds = buildRowIds(data.content)
         val paginationInfo = PaginationInfo.from(data)
 
@@ -365,36 +372,62 @@ class AdminEntityController(
         desc: AdminEntityDescriptor,
         found: Any?,
         createMode: Boolean,
-    ): List<Map<String, Any?>> =
-        desc.detailAttributes
-            .filterNot { createMode && desc.idGenerated && it.name == desc.idAttribute }
-            .map { attr ->
-                val value = found?.let { readFieldValue(it, attr.name) }
-                val relationDesc = if (isAssociation(attr)) registry.getByJavaType(attr.javaType) else null
-                val relationOptions =
-                    relationDesc
-                        ?.let { related ->
-                            crud.listAll(related.entityName).map { option ->
-                                mapOf(
-                                    "id" to crud.getId(option)?.toString(),
-                                    "label" to option.toString(),
-                                )
-                            }
-                        } ?: emptyList()
+    ): List<Map<String, Any?>> {
+        val standardFields =
+            desc.detailAttributes
+                .filterNot { createMode && desc.idGenerated && it.name == desc.idAttribute }
+                .map { attr ->
+                    val value = found?.let { readFieldValue(it, attr.name) }
+                    val relationDesc = if (isAssociation(attr)) registry.getByJavaType(attr.javaType) else null
+                    val relationOptions =
+                        relationDesc
+                            ?.let { related ->
+                                crud.listAll(related.entityName).map { option ->
+                                    mapOf(
+                                        "id" to crud.getId(option)?.toString(),
+                                        "label" to option.toString(),
+                                    )
+                                }
+                            } ?: emptyList()
 
+                    mapOf(
+                        "name" to attr.name,
+                        "label" to humanize(attr.name),
+                        "inputType" to inputTypeFor(attr),
+                        "value" to formatValue(attr, value),
+                        "required" to isFieldRequired(attr, desc, createMode),
+                        "readonly" to (!createMode && attr.name == desc.idAttribute),
+                        "relation" to (relationDesc != null),
+                        "relationOptions" to relationOptions,
+                        "relationValue" to relationValue(relationDesc, value),
+                        "relationEntityName" to relationDesc?.entityName,
+                    )
+                }
+
+        val computedFields =
+            desc.computedFields.map { (name, method) ->
+                val value =
+                    try {
+                        found?.let { method.invoke(it) }
+                    } catch (ex: Exception) {
+                        null
+                    }
                 mapOf(
-                    "name" to attr.name,
-                    "label" to humanize(attr.name),
-                    "inputType" to inputTypeFor(attr),
-                    "value" to formatValue(attr, value),
-                    "required" to isFieldRequired(attr, desc, createMode),
-                    "readonly" to (!createMode && attr.name == desc.idAttribute),
-                    "relation" to (relationDesc != null),
-                    "relationOptions" to relationOptions,
-                    "relationValue" to relationValue(relationDesc, value),
-                    "relationEntityName" to relationDesc?.entityName,
+                    "name" to name,
+                    "label" to humanize(name),
+                    "inputType" to "text",
+                    "value" to value?.toString(),
+                    "required" to false,
+                    "readonly" to true,
+                    "relation" to false,
+                    "relationOptions" to emptyList<Any>(),
+                    "relationValue" to null,
+                    "relationEntityName" to null,
                 )
             }
+
+        return standardFields + computedFields
+    }
 
     private fun addEntityFormContext(
         model: Model,
@@ -647,10 +680,10 @@ class AdminEntityController(
         val targetDesc = determineTargetDescriptor(items)
         val attributeTitles = targetDesc.attributes.map { it.name }
 
-        val filtered = filterItems(items, attributeTitles, q)
-        val sorted = sortItems(filtered, sort, dir, attributeTitles)
+        val filtered = filterItems(items, attributeTitles, q, targetDesc)
+        val sorted = sortItems(filtered, sort, dir, attributeTitles, targetDesc)
         val dataPage = paginate(sorted, page, pageSize)
-        val rows = buildRows(attributeTitles, dataPage.content)
+        val rows = buildRows(attributeTitles, dataPage.content, targetDesc)
         val rowIds = buildRowIds(dataPage.content)
         val allRowIds = buildRowIds(sorted)
 
@@ -701,6 +734,7 @@ class AdminEntityController(
         items: List<Any>,
         attributeTitles: List<String>,
         q: String?,
+        desc: AdminEntityDescriptor,
     ): List<Any> {
         if (q.isNullOrBlank()) return items
         val qlc = q.trim().lowercase()
@@ -711,9 +745,15 @@ class AdminEntityController(
                 val fieldMatch =
                     attributeTitles.any { an ->
                         try {
-                            val f = elem.javaClass.getDeclaredField(an)
-                            f.isAccessible = true
-                            val v = f.get(elem)
+                            val computedMethod = desc.computedFields[an]
+                            val v =
+                                if (computedMethod != null) {
+                                    computedMethod.invoke(elem)
+                                } else {
+                                    val f = elem.javaClass.getDeclaredField(an)
+                                    f.isAccessible = true
+                                    f.get(elem)
+                                }
                             (v as? String)?.lowercase()?.contains(qlc) == true
                         } catch (_: Exception) {
                             false
@@ -731,23 +771,34 @@ class AdminEntityController(
         sort: String?,
         dir: String?,
         attributeTitles: List<String>,
+        desc: AdminEntityDescriptor,
     ): List<Any> {
         if (sort.isNullOrBlank() || !attributeTitles.contains(sort)) return items
         val comparator =
             Comparator<Any> { a, b ->
                 val av =
                     try {
-                        val f = a.javaClass.getDeclaredField(sort).apply { isAccessible = true }
-                        @Suppress("UNCHECKED_CAST")
-                        f.get(a) as? Comparable<Any>
+                        val computedMethod = desc.computedFields[sort]
+                        if (computedMethod != null) {
+                            computedMethod.invoke(a) as? Comparable<Any>
+                        } else {
+                            val f = a.javaClass.getDeclaredField(sort).apply { isAccessible = true }
+                            @Suppress("UNCHECKED_CAST")
+                            f.get(a) as? Comparable<Any>
+                        }
                     } catch (_: Exception) {
                         null
                     }
                 val bv =
                     try {
-                        val f = b.javaClass.getDeclaredField(sort).apply { isAccessible = true }
-                        @Suppress("UNCHECKED_CAST")
-                        f.get(b) as? Comparable<Any>
+                        val computedMethod = desc.computedFields[sort]
+                        if (computedMethod != null) {
+                            computedMethod.invoke(b) as? Comparable<Any>
+                        } else {
+                            val f = b.javaClass.getDeclaredField(sort).apply { isAccessible = true }
+                            @Suppress("UNCHECKED_CAST")
+                            f.get(b) as? Comparable<Any>
+                        }
                     } catch (_: Exception) {
                         null
                     }

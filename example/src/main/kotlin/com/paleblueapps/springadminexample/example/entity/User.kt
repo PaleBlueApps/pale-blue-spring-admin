@@ -1,5 +1,6 @@
 package com.paleblueapps.springadminexample.example.entity
 
+import com.paleblueapps.springadmin.annotation.AdminComputedField
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
@@ -24,4 +25,7 @@ data class User(
     val posts: List<Post> = emptyList(),
 ) {
     override fun toString(): String = username
+
+    @AdminComputedField("User's name, age")
+    fun getUsersNameAndAge(): String = "$username $age"
 }
