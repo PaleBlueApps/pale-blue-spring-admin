@@ -68,34 +68,36 @@ class AdminEntityRegistry(
                                 )
                         }
 
-                    val computed = javaType.methods
-                        .filter { it.isAnnotationPresent(AdminComputedField::class.java) }
-                        .associateBy { method ->
-                            val ann = method.getAnnotation(AdminComputedField::class.java)
-                            ann.name.ifBlank {
-                                val name = method.name
-                                if (name.startsWith("get") && name.length > 3) {
-                                    name.substring(3).replaceFirstChar { it.lowercase(Locale.ENGLISH) }
-                                } else if (name.startsWith("is") && name.length > 2) {
-                                    name.substring(2).replaceFirstChar { it.lowercase(Locale.ENGLISH) }
-                                } else {
-                                    name
+                    val computed =
+                        javaType.methods
+                            .filter { it.isAnnotationPresent(AdminComputedField::class.java) }
+                            .associateBy { method ->
+                                val ann = method.getAnnotation(AdminComputedField::class.java)
+                                ann.name.ifBlank {
+                                    val name = method.name
+                                    if (name.startsWith("get") && name.length > 3) {
+                                        name.substring(3).replaceFirstChar { it.lowercase(Locale.ENGLISH) }
+                                    } else if (name.startsWith("is") && name.length > 2) {
+                                        name.substring(2).replaceFirstChar { it.lowercase(Locale.ENGLISH) }
+                                    } else {
+                                        name
+                                    }
                                 }
                             }
-                        }
 
-                    val desc = AdminEntityDescriptor(
-                        entityName = key,
-                        displayName = simple,
-                        jpaName = jpaName,
-                        javaType = javaType,
-                        idAttribute = idName,
-                        idType = idType,
-                        idGenerated = idGenerated,
-                        attributes = listAttributes,
-                        detailAttributes = detailAttributes,
-                        computedFields = computed,
-                    )
+                    val desc =
+                        AdminEntityDescriptor(
+                            entityName = key,
+                            displayName = simple,
+                            jpaName = jpaName,
+                            javaType = javaType,
+                            idAttribute = idName,
+                            idType = idType,
+                            idGenerated = idGenerated,
+                            attributes = listAttributes,
+                            detailAttributes = detailAttributes,
+                            computedFields = computed,
+                        )
                     put(key, desc)
                 }
             }.toMap()
