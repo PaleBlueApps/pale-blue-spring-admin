@@ -10,13 +10,14 @@
         <h1 class="text-2xl font-semibold mb-2" th:text="${title} ?: 'Admin'">
           Admin
         </h1>
-        <p class="text-sm text-gray-500">Discovered entities</p>
       </div>
       <div class="space-y-4 mb-6" th:if="${!#lists.isEmpty(indexBeforeFragments)}">
         <th:block th:each="fragment : ${indexBeforeFragments}">
           <th:block th:replace="~{${fragment.templateName} :: ${fragment.fragmentName}}"></th:block>
         </th:block>
       </div>
+      <div class="space-y-2">
+      <p class="text-sm text-gray-500">Discovered entities</p>
       <div class="bg-white rounded-lg shadow border border-gray-200">
         <ul class="divide-y divide-gray-200">
           <li
@@ -36,6 +37,7 @@
             >
           </li>
         </ul>
+      </div>
       </div>
       <div class="space-y-4 mt-6" th:if="${!#lists.isEmpty(indexAfterFragments)}">
         <th:block th:each="fragment : ${indexAfterFragments}">
