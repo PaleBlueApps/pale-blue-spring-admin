@@ -9,6 +9,7 @@ A lightweight Spring Boot admin UI that auto-discovers your JPA entities and pro
 - Auto-discovers JPA entities via the JPA metamodel
 - Thymeleaf-based UI for list and detail views
 - Configurable base path, title, and pagination
+- Optional index-page fragment slots for custom dashboard panels
 
 ## Requirements
 - Spring Boot 3.3+
@@ -43,6 +44,7 @@ The library is enabled by default. You can control the base path, UI title, and 
 spring.data.admin.enabled=true
 spring.data.admin.base-path=/admin
 spring.data.admin.ui.title=My Admin
+spring.data.admin.ui.index-fragments.before-entities[0]=admin/my-panel :: content
 spring.data.admin.pagination.default-size=25
 spring.data.admin.pagination.max-size=200
 ```
@@ -56,6 +58,9 @@ spring:
       base-path: /admin
       ui:
         title: My Admin
+        index-fragments:
+          before-entities:
+            - admin/my-panel :: content
       pagination:
         default-size: 25
         max-size: 200
@@ -69,6 +74,44 @@ spring:
 ### 4) Run and access the UI
 - Start your Spring Boot app
 - Navigate to http://localhost:8080/admin (or whatever `spring.data.admin.base-path` you configured)
+
+### 4a) Add custom content to the admin index page
+You can inject Thymeleaf fragments before or after the entity list without overriding `sda/index.html`.
+
+#### application.yml
+```yaml
+spring:
+  data:
+    admin:
+      ui:
+        index-fragments:
+          before-entities:
+            - admin/token-usage :: content
+          after-entities:
+            - admin/footer-note :: content
+```
+
+#### Fragment template
+```html
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <body>
+    <section th:fragment="content">
+      <h2>Custom dashboard panel</h2>
+    </section>
+  </body>
+</html>
+```
+
+If your fragment needs dynamic data, provide it with standard Spring MVC model mechanisms such as `@ControllerAdvice` targeting `AdminIndexController`.
+
+```kotlin
+@ControllerAdvice(assignableTypes = [AdminIndexController::class])
+class AdminIndexAdvice {
+    @ModelAttribute("tokenCount")
+    fun tokenCount(): Long = 42
+}
+```
 
 ### 5) Securing the admin UI
 By default, the endpoints are standard MVC controllers mounted under spring.data.admin.base-path (default /admin). With Spring Security, you can restrict access, e.g.:

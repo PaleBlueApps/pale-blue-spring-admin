@@ -19,6 +19,9 @@ spring:
       base-path: /admin
       ui:
         title: My Admin
+        index-fragments:
+          before-entities:
+            - "admin/example-index-panels :: overview"
       pagination:
         default-size: 25
         max-size: 200

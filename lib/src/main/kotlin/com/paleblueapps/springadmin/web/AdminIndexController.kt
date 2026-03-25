@@ -18,6 +18,8 @@ class AdminIndexController(
         model.addAttribute("title", props.ui.title)
         model.addAttribute("entities", registry.all())
         model.addAttribute("basePath", props.basePath)
+        model.addAttribute("indexBeforeFragments", props.ui.indexFragments.beforeEntities.map(AdminIndexFragmentRef::parse))
+        model.addAttribute("indexAfterFragments", props.ui.indexFragments.afterEntities.map(AdminIndexFragmentRef::parse))
         return "sda/index"
     }
 }
