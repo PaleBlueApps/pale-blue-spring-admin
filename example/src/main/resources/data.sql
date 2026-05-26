@@ -2,6 +2,8 @@ DROP TABLE IF EXISTS user_roles;
 DROP TABLE IF EXISTS posts;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS board_entries;
+DROP TABLE IF EXISTS boards;
 
 -- USERS
 CREATE TABLE IF NOT EXISTS users (
@@ -16,6 +18,23 @@ CREATE TABLE IF NOT EXISTS roles (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      name TEXT NOT NULL UNIQUE
 );
+
+-- BOARDS
+CREATE TABLE IF NOT EXISTS boards (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL
+);
+
+-- BOARD_ENTRIES (FK → boards)
+CREATE TABLE IF NOT EXISTS board_entries (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     label TEXT NOT NULL,
+     board_id INTEGER NOT NULL,
+     created_at TEXT NOT NULL,
+     FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_entries_board_id ON board_entries(board_id);
 
 -- POSTS (FK → users)
 CREATE TABLE IF NOT EXISTS posts (
@@ -63,6 +82,14 @@ INSERT INTO roles (id, name) VALUES
             (1, 'ADMIN'),
             (2, 'EDITOR'),
             (3, 'VIEWER');
+
+INSERT INTO boards (id, name) VALUES
+             (1, 'Promies');
+
+INSERT INTO board_entries (id, label, board_id, created_at) VALUES
+             (1, 'older', 1, '2026-01-25 19:50:13.947'),
+             (2, 'newest', 1, '2026-01-26 08:15:00.000'),
+             (3, 'middle', 1, '2026-01-26 01:15:00.000');
 
 INSERT INTO posts (id, title, content, user_id) VALUES
         (1, 'First Post', 'Welcome to the example application!', 1),
