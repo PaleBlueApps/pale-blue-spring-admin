@@ -732,8 +732,9 @@ class AdminEntityController(
         parent: Any,
         rel: String,
     ): List<Any> {
-        val raw = readPropertyValue(parent, rel)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown relation: $rel")
+        val raw =
+            readPropertyValue(parent, rel)
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown relation: $rel")
         return when (raw) {
             is Iterable<*> -> raw.filterNotNull().map { it as Any }
             else -> emptyList()
