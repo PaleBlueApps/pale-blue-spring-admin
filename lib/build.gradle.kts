@@ -55,11 +55,11 @@ tasks.withType<Test> {
 
 mavenPublishing {
     publishToMavenCentral()
-//    signAllPublications()
+    signAllPublications()
     coordinates(
         groupId = "com.paleblueapps",
         artifactId = "springadmin",
-        version = "1.3.3",
+        version = "1.3.2",
     )
 
     pom {
