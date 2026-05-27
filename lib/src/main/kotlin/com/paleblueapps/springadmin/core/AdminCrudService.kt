@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.Lob
 import jakarta.persistence.Query
 import jakarta.persistence.metamodel.Attribute
+import org.springframework.beans.BeanWrapperImpl
 import org.springframework.transaction.annotation.Transactional
 import java.lang.reflect.AnnotatedElement
 import java.math.BigDecimal
@@ -398,9 +399,7 @@ class AdminCrudService(
         fieldName: String,
     ): Any? =
         try {
-            val field = target.javaClass.getDeclaredField(fieldName)
-            field.isAccessible = true
-            field.get(target)
+            BeanWrapperImpl(target).getPropertyValue(fieldName)
         } catch (_: Exception) {
             null
         }

@@ -11,6 +11,7 @@ import jakarta.persistence.Lob
 import jakarta.persistence.ManyToMany
 import jakarta.persistence.OneToMany
 import jakarta.persistence.metamodel.Attribute
+import org.springframework.beans.BeanWrapperImpl
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
@@ -50,20 +51,7 @@ class AdminEntityController(
         desc: AdminEntityDescriptor,
     ): List<List<Any?>> =
         content.map { entityObj ->
-            attributeTitles.map { attribute ->
-                try {
-                    val computedMethod = desc.computedFields[attribute]
-                    if (computedMethod != null) {
-                        computedMethod.invoke(entityObj)
-                    } else {
-                        val field = entityObj.javaClass.getDeclaredField(attribute)
-                        field.isAccessible = true
-                        field.get(entityObj)
-                    }
-                } catch (ex: Exception) {
-                    null
-                }
-            }
+            attributeTitles.map { attribute -> readAttributeValue(entityObj, attribute, desc) }
         }
 
     private fun buildRowIds(content: List<Any>): List<Any?> = content.map { crud.getId(it) }
@@ -507,13 +495,7 @@ class AdminEntityController(
                             if (i >= maxRows) break
                             val row =
                                 attributeTitles.map { attrName ->
-                                    try {
-                                        val fld = elem.javaClass.getDeclaredField(attrName)
-                                        fld.isAccessible = true
-                                        fld.get(elem)
-                                    } catch (_: Exception) {
-                                        null
-                                    }
+                                    readPropertyValue(elem, attrName)
                                 }
                             rows += row
                             rowIds += crud.getId(elem)
@@ -543,13 +525,50 @@ class AdminEntityController(
     private fun readFieldValue(
         target: Any,
         fieldName: String,
+    ): Any? = readPropertyValue(target, fieldName)
+
+    private fun readAttributeValue(
+        target: Any,
+        attributeName: String,
+        desc: AdminEntityDescriptor,
+    ): Any? {
+        val computedMethod = desc.computedFields[attributeName]
+        return if (computedMethod != null) {
+            try {
+                computedMethod.invoke(target)
+            } catch (_: Exception) {
+                null
+            }
+        } else {
+            readPropertyValue(target, attributeName)
+        }
+    }
+
+    private fun readPropertyValue(
+        target: Any,
+        propertyName: String,
     ): Any? =
         try {
-            val field = target.javaClass.getDeclaredField(fieldName)
-            field.isAccessible = true
-            field.get(target)
+            BeanWrapperImpl(target).getPropertyValue(propertyName)
         } catch (_: Exception) {
             null
+        }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun compareNullableValues(
+        left: Any?,
+        right: Any?,
+    ): Int =
+        when {
+            left == null && right == null -> 0
+            left == null -> -1
+            right == null -> 1
+            left is LocalDate -> left.compareTo(right as LocalDate)
+            left is LocalDateTime -> left.compareTo(right as LocalDateTime)
+            left is OffsetDateTime -> left.compareTo(right as OffsetDateTime)
+            left is Comparable<*> && left.javaClass.isInstance(right) -> (left as Comparable<Any>).compareTo(right)
+            right is Comparable<*> && right.javaClass.isInstance(left) -> -(right as Comparable<Any>).compareTo(left)
+            else -> left.toString().compareTo(right.toString())
         }
 
     private fun isAssociation(attr: Attribute<*, *>): Boolean =
@@ -713,13 +732,9 @@ class AdminEntityController(
         parent: Any,
         rel: String,
     ): List<Any> {
-        val field =
-            try {
-                parent.javaClass.getDeclaredField(rel).apply { isAccessible = true }
-            } catch (ex: Exception) {
-                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown relation: $rel")
-            }
-        val raw = field.get(parent)
+        val raw =
+            readPropertyValue(parent, rel)
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown relation: $rel")
         return when (raw) {
             is Iterable<*> -> raw.filterNotNull().map { it as Any }
             else -> emptyList()
@@ -744,20 +759,7 @@ class AdminEntityController(
                 val idMatch = idVal?.contains(qlc) == true
                 val fieldMatch =
                     attributeTitles.any { an ->
-                        try {
-                            val computedMethod = desc.computedFields[an]
-                            val v =
-                                if (computedMethod != null) {
-                                    computedMethod.invoke(elem)
-                                } else {
-                                    val f = elem.javaClass.getDeclaredField(an)
-                                    f.isAccessible = true
-                                    f.get(elem)
-                                }
-                            (v as? String)?.lowercase()?.contains(qlc) == true
-                        } catch (_: Exception) {
-                            false
-                        }
+                        (readAttributeValue(elem, an, desc) as? String)?.lowercase()?.contains(qlc) == true
                     }
                 idMatch || fieldMatch
             } catch (_: Exception) {
@@ -776,39 +778,9 @@ class AdminEntityController(
         if (sort.isNullOrBlank() || !attributeTitles.contains(sort)) return items
         val comparator =
             Comparator<Any> { a, b ->
-                val av =
-                    try {
-                        val computedMethod = desc.computedFields[sort]
-                        if (computedMethod != null) {
-                            computedMethod.invoke(a) as? Comparable<Any>
-                        } else {
-                            val f = a.javaClass.getDeclaredField(sort).apply { isAccessible = true }
-                            @Suppress("UNCHECKED_CAST")
-                            f.get(a) as? Comparable<Any>
-                        }
-                    } catch (_: Exception) {
-                        null
-                    }
-                val bv =
-                    try {
-                        val computedMethod = desc.computedFields[sort]
-                        if (computedMethod != null) {
-                            computedMethod.invoke(b) as? Comparable<Any>
-                        } else {
-                            val f = b.javaClass.getDeclaredField(sort).apply { isAccessible = true }
-                            @Suppress("UNCHECKED_CAST")
-                            f.get(b) as? Comparable<Any>
-                        }
-                    } catch (_: Exception) {
-                        null
-                    }
-
-                when {
-                    av == null && bv == null -> 0
-                    av == null -> -1
-                    bv == null -> 1
-                    else -> av.compareTo(bv)
-                }
+                val av = readAttributeValue(a, sort, desc)
+                val bv = readAttributeValue(b, sort, desc)
+                compareNullableValues(av, bv)
             }
         return if (dir.equals("desc", true)) items.sortedWith(comparator.reversed()) else items.sortedWith(comparator)
     }

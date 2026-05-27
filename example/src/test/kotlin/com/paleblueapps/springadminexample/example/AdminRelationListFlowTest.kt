@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import java.nio.file.Files
+import kotlin.test.assertTrue
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -29,6 +30,29 @@ class AdminRelationListFlowTest(
                 content { string(Matchers.containsString("Delete selected")) }
                 content { string(Matchers.containsString("class=\"row-selector")) }
             }
+    }
+
+    @Test
+    fun `relation list sorts inherited LocalDateTime values descending`() {
+        val content =
+            mockMvc
+                .get("/admin/board/1/rel/entries") {
+                    param("sort", "createdAt")
+                    param("dir", "desc")
+                }.andExpect {
+                    status { isOk() }
+                    content { string(Matchers.containsString("newest")) }
+                    content { string(Matchers.containsString("middle")) }
+                    content { string(Matchers.containsString("older")) }
+                    content { string(Matchers.containsString("2026-01-26T08:15")) }
+                }.andReturn()
+                .response
+                .contentAsString
+
+        val tableBody = content.substringAfter("<tbody class=\"divide-y divide-gray-100\">")
+
+        assertTrue(tableBody.indexOf(">newest</span") < tableBody.indexOf(">middle</span"))
+        assertTrue(tableBody.indexOf(">middle</span") < tableBody.indexOf(">older</span"))
     }
 
     @Test
