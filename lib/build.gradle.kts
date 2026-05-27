@@ -32,6 +32,7 @@ dependencies {
     kapt(libs.spring.boot.configuration.processor)
 
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.spring.boot.starter.data.jpa)
     testImplementation(libs.kotlin.test.junit5)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
@@ -54,11 +55,11 @@ tasks.withType<Test> {
 
 mavenPublishing {
     publishToMavenCentral()
-    signAllPublications()
+//    signAllPublications()
     coordinates(
         groupId = "com.paleblueapps",
         artifactId = "springadmin",
-        version = "1.3.1",
+        version = "1.3.3",
     )
 
     pom {

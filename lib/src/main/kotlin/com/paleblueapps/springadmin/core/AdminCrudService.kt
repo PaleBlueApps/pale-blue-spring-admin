@@ -33,9 +33,14 @@ class AdminCrudService(
         val desc = findDescriptorOrThrow(entityKey)
 
         val safeSort = normalizeSort(desc, sort)
-        val orderClause = buildOrderClause(safeSort, dir)
         val search = buildSearchParts(desc, q)
 
+        if (shouldSortInMemory(desc, safeSort)) {
+            val sorted = sortItems(fetchMatching(desc, search, q), safeSort, dir)
+            return paginate(sorted, page, size)
+        }
+
+        val orderClause = buildOrderClause(safeSort, dir)
         val queryString =
             buildString {
                 append("select x from ")
@@ -89,9 +94,14 @@ class AdminCrudService(
     ): List<String> {
         val desc = findDescriptorOrThrow(entityKey)
         val safeSort = normalizeSort(desc, sort)
-        val orderClause = buildOrderClause(safeSort, dir)
         val search = buildSearchParts(desc, q)
 
+        if (shouldSortInMemory(desc, safeSort)) {
+            return sortItems(fetchMatching(desc, search, q), safeSort, dir)
+                .mapNotNull { getId(it)?.toString() }
+        }
+
+        val orderClause = buildOrderClause(safeSort, dir)
         val queryString =
             buildString {
                 append("select distinct x.")
@@ -174,7 +184,8 @@ class AdminCrudService(
         values: Map<String, String>,
     ): Any {
         val desc = findDescriptorOrThrow(entityKey)
-        val existing = findById(entityKey, idValue) ?: throw IllegalArgumentException("${desc.displayName} \"$idValue\" does not exist.")
+        val existing = findById(entityKey, idValue)
+            ?: throw IllegalArgumentException("${desc.displayName} \"$idValue\" does not exist.")
         val constructor =
             desc.javaType.kotlin.primaryConstructor
                 ?: throw IllegalStateException("${desc.displayName} must declare a primary constructor to support editing.")
@@ -189,6 +200,88 @@ class AdminCrudService(
 
     private fun findDescriptorOrThrow(entityKey: String): AdminEntityDescriptor =
         registry.get(entityKey) ?: throw IllegalArgumentException("Unknown entity: $entityKey")
+
+    private fun fetchMatching(
+        desc: AdminEntityDescriptor,
+        search: SearchParts,
+        q: String?,
+    ): List<Any> {
+        val queryString =
+            buildString {
+                append("select x from ")
+                append(desc.jpaName)
+                append(" x")
+                append(search.joinClause)
+                append(search.whereClause)
+            }
+
+        @Suppress("UNCHECKED_CAST")
+        val query =
+            entityManager.createQuery(
+                queryString,
+                desc.javaType as Class<Any>,
+            )
+        query.applySearchParam(q = q, whereClause = search.whereClause)
+        return query.resultList
+    }
+
+    private fun shouldSortInMemory(
+        desc: AdminEntityDescriptor,
+        sort: String?,
+    ): Boolean {
+        if (sort.isNullOrBlank()) return false
+        val sortAttribute = desc.attributes.firstOrNull { it.name == sort } ?: return false
+        return sortAttribute.javaType in temporalSortTypes
+    }
+
+    private fun sortItems(
+        items: List<Any>,
+        sort: String?,
+        dir: String?,
+    ): List<Any> {
+        if (sort.isNullOrBlank()) return items
+        val comparator = Comparator<Any> { left, right ->
+            compareNullableValues(
+                readFieldValue(left, sort),
+                readFieldValue(right, sort)
+            )
+        }
+        return if (dir.equals("desc", ignoreCase = true)) items.sortedWith(comparator.reversed()) else items.sortedWith(
+            comparator
+        )
+    }
+
+    private fun paginate(
+        items: List<Any>,
+        page: Int,
+        size: Int,
+    ): DataPage<Any> {
+        if (size <= 0) {
+            return DataPage(content = items, page = page, size = size, totalElements = items.size.toLong())
+        }
+
+        val total = items.size
+        val from = (page.coerceAtLeast(0) * size).coerceAtMost(total)
+        val to = (from + size).coerceAtMost(total)
+        return DataPage(content = items.subList(from, to), page = page, size = size, totalElements = total.toLong())
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun compareNullableValues(
+        left: Any?,
+        right: Any?,
+    ): Int =
+        when {
+            left == null && right == null -> 0
+            left == null -> -1
+            right == null -> 1
+            left is LocalDate -> left.compareTo(right as LocalDate)
+            left is LocalDateTime -> left.compareTo(right as LocalDateTime)
+            left is OffsetDateTime -> left.compareTo(right as OffsetDateTime)
+            left is Comparable<*> && left.javaClass.isInstance(right) -> (left as Comparable<Any>).compareTo(right)
+            right is Comparable<*> && right.javaClass.isInstance(left) -> -(right as Comparable<Any>).compareTo(left)
+            else -> left.toString().compareTo(right.toString())
+        }
 
     private fun buildConstructorArgs(
         desc: AdminEntityDescriptor,
@@ -218,9 +311,18 @@ class AdminCrudService(
                     }
                 }
 
-                existing == null && name != desc.idAttribute && shouldUseConstructorDefault(parameter, values[name]) -> Unit
+                existing == null && name != desc.idAttribute && shouldUseConstructorDefault(
+                    parameter,
+                    values[name]
+                ) -> Unit
+
                 isAssociation(attribute) -> {
-                    val resolved = resolveAssociationValue(attribute, values[name], parameter.isOptional, parameter.type.isMarkedNullable)
+                    val resolved = resolveAssociationValue(
+                        attribute,
+                        values[name],
+                        parameter.isOptional,
+                        parameter.type.isMarkedNullable
+                    )
                     if (existing != null || resolved != null || !parameter.isOptional) {
                         args[parameter] = resolved
                     }
@@ -297,7 +399,7 @@ class AdminCrudService(
             when (attr.persistentAttributeType) {
                 Attribute.PersistentAttributeType.MANY_TO_ONE,
                 Attribute.PersistentAttributeType.ONE_TO_ONE,
-                -> {
+                    -> {
                     val alias = "j_${attr.name}"
                     if (joinedAliases.add(alias)) {
                         joinBuilder.append(" left join x.${attr.name} $alias")
@@ -328,10 +430,10 @@ class AdminCrudService(
 
     private fun isAssociation(attr: Attribute<*, *>): Boolean =
         attr.persistentAttributeType in
-            setOf(
-                Attribute.PersistentAttributeType.MANY_TO_ONE,
-                Attribute.PersistentAttributeType.ONE_TO_ONE,
-            )
+                setOf(
+                    Attribute.PersistentAttributeType.MANY_TO_ONE,
+                    Attribute.PersistentAttributeType.ONE_TO_ONE,
+                )
 
     private fun resolveAssociationValue(
         attr: Attribute<*, *>,
@@ -443,6 +545,12 @@ class AdminCrudService(
             else -> throw UnsupportedOperationException("Unsupported ID type: ${idType.name}")
         }
 }
+
+private val temporalSortTypes: Set<Class<*>> = setOf(
+    LocalDate::class.java,
+    LocalDateTime::class.java,
+    OffsetDateTime::class.java,
+)
 
 private data class SearchParts(
     val joinClause: String = "",
