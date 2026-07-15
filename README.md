@@ -1,15 +1,18 @@
 # Pale Blue Spring Admin
 
-A lightweight Spring Boot admin UI that auto-discovers your JPA entities and provides simple list and detail pages to browse data in your database. It is designed to be dropped into an existing Spring Boot application with minimal setup.
+A lightweight Spring Boot admin UI that auto-discovers your JPA entities and provides simple list and detail pages to browse and edit data in your database. Create, update, and delete records directly from the UI — no database console or custom REST endpoints required. It is designed to be dropped into an existing Spring Boot application with minimal setup.
 
 [![Maven Central](https://img.shields.io/maven-central/v/com.paleblueapps/springadmin.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/com.paleblueapps/springadmin)
 
 ## Key features
 - Zero controller code in your app – auto-configuration wires everything
 - Auto-discovers JPA entities via the JPA metamodel
+- Full CRUD – create, update, and delete records (including bulk delete) directly from the UI, with forms auto-generated from your JPA annotations ([read more](https://www.paleblueapps.com/rockandnull/spring-boot-admin-crud-custom-ui/))
 - Thymeleaf-based UI for list and detail views
 - Configurable base path, title, and pagination
 - Optional index-page fragment slots for custom dashboard panels
+
+![Pale Blue Spring Admin entity edit view](docs/images/admin-entity-edit.png)
 
 ## Requirements
 - Spring Boot 3.3+
